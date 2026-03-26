@@ -2,56 +2,156 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Login</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Login – QR Access</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .card {
+      background: #16213e;
+      padding: 44px 38px;
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      text-align: center;
+      width: 340px;
+    }
+    .logo { font-size: 40px; margin-bottom: 6px; }
+    h2 { color: #4cc9f0; margin-bottom: 28px; font-size: 20px; }
+    input {
+      display: block;
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      background: #0f3460;
+      border: 1px solid #ffffff22;
+      border-radius: 9px;
+      color: white;
+      font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #4361ee; }
+    input::placeholder { color: #8d99ae; }
+    button {
+      width: 100%;
+      padding: 13px;
+      background: #4361ee;
+      color: white;
+      border: none;
+      border-radius: 9px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background .2s;
+    }
+    button:hover { background: #3451d1; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .error { color: #e63946; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  </style>
 </head>
 <body>
-  <div class="login-container">
-    <h2>Iniciar sesión</h2>
-    <form id="loginForm">
-      <input type="text" id="username" placeholder="Usuario" required>
-      <input type="password" id="password" placeholder="Contraseña" required>
-      <button type="submit">Entrar</button>
-    </form>
-    <p id="error" class="error"></p>
+  <div class="card">
+    <div class="logo">🏪</div>
+    <h2>QR Access Logger</h2>
+    <input type="text"     id="username" placeholder="Usuario"     autocomplete="off">
+    <input type="password" id="password" placeholder="Contraseña">
+    <button id="btnLogin">Iniciar sesión</button>
+    <p class="error" id="error"></p>
   </div>
 
   <script>
-    const loginForm = document.getElementById('loginForm');
-    const error = document.getElementById('error');
+    // ── Configuración ──────────────────────────────────────────────
+    // Cambia esta URL si tu backend corre en otro puerto/host
+    const API = 'http://localhost:3000/api';
 
-    loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const username = document.getElementById('username').value;
+    // ── Login contra el backend Node.js ───────────────────────────
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
+      const errorEl  = document.getElementById('error');
+      const btn      = document.getElementById('btnLogin');
 
-      // Login básico sin backend (para prueba)
-      if(username === "admin" && password === "1234") {
-        localStorage.setItem("user", username);
-        window.location.href = "dashboard.html";
-      } else {
-        error.textContent = "Usuario o contraseña incorrectos";
+      errorEl.textContent = '';
+      if (!username || !password) {
+        errorEl.textContent = 'Rellena usuario y contraseña.';
+        return;
+      }
+
+      btn.textContent = 'Entrando...';
+      btn.disabled = true;
+
+      try {
+        const res  = await fetch(`${API}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorEl.textContent = data.error || 'Credenciales incorrectas';
+          btn.textContent = 'Iniciar sesión';
+          btn.disabled = false;
+          return;
+        }
+
+        // Guardar sesión
+        const now = new Date();
+        localStorage.setItem('token',     data.data.token);
+        localStorage.setItem('user',      username);
+        localStorage.setItem('loginTime', now.toLocaleString('es-ES'));
+
+        // Registrar login con geolocalización (no bloqueante)
+        registrarLogin(username, data.data.token, now);
+
+        // Mantener parámetro de tienda si viene en la URL
+        const tienda = new URLSearchParams(window.location.search).get('tienda');
+        window.location.href = tienda
+          ? `dashboard.html?tienda=${encodeURIComponent(tienda)}`
+          : 'dashboard.html';
+
+      } catch (e) {
+        errorEl.textContent = 'No se pudo conectar con el servidor.';
+        btn.textContent = 'Iniciar sesión';
+        btn.disabled = false;
       }
     });
-  </script>
-  <script type="module">
-  // Import de las funciones de la base de datos
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// Configuración de la base de datos
-const firebaseConfig = {
-  apiKey: "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
-  authDomain: "basededatos-dd6b3.firebaseapp.com",
-  projectId: "basededatos-dd6b3",
-  storageBucket: "basededatos-dd6b3.firebasestorage.app",
-  messagingSenderId: "452860965959",
-  appId: "1:452860965959:web:42ecb1c31f17e55daa6d62",
-  measurementId: "G-HF8LLPE2SL"
-};
 
-// Inicialización de la base de datos
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-     </script>
+    // Enter en los inputs
+    ['username','password'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btnLogin').click();
+      });
+    });
+
+    async function registrarLogin(username, token, now) {
+      const entrada = {
+        usuario:   username,
+        fecha:     now.toLocaleDateString('es-ES'),
+        hora:      now.toLocaleTimeString('es-ES'),
+        timestamp: now.toISOString(),
+        lat: null, lng: null
+      };
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => { entrada.lat = pos.coords.latitude; entrada.lng = pos.coords.longitude; },
+          ()  => {}
+        );
+      }
+      // Se envía al backend como un fichaje especial de tipo "login"
+      // (el backend puede ignorarlo si no tiene esa ruta; no es bloqueante)
+      try {
+        await fetch(`${API}/checkins/login-log`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(entrada)
+        });
+      } catch(_) {}
+    }
+  </script>
 </body>
 </html>
