@@ -2,45 +2,293 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Fichaje QR</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <title>Dashboard – QR Access</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a2e; font-family: Arial, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      background: #16213e;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .topbar .brand { font-size: 18px; font-weight: bold; color: #4cc9f0; }
+    .user-info {
+      text-align: right;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #cdd3de;
+    }
+    .user-info strong { color: white; font-size: 14px; }
+    .user-info .tienda-badge {
+      display: inline-block;
+      background: #4361ee;
+      color: white;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .user-info .rol-admin { color: #f8961e; font-weight: bold; }
+
+    /* ── MAIN ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      gap: 20px;
+    }
+
+    .store-title {
+      color: white;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .store-title span { color: #4cc9f0; }
+
+    /* ── FICHAJE BUTTONS ── */
+    .fichar-btns {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn-entrada, .btn-salida {
+      width: 160px;
+      height: 160px;
+      border: none;
+      border-radius: 50%;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-entrada { background: #2dc653; color: white; }
+    .btn-salida  { background: #e63946; color: white; }
+    .btn-entrada:hover { transform: scale(1.06); box-shadow: 0 8px 28px rgba(45,198,83,0.4); }
+    .btn-salida:hover  { transform: scale(1.06); box-shadow: 0 8px 28px rgba(230,57,70,0.4); }
+    .btn-entrada:disabled, .btn-salida:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-icon { font-size: 36px; }
+
+    /* ── STATUS ── */
+    .status-box {
+      background: #16213e;
+      color: #a8dadc;
+      border-radius: 10px;
+      padding: 14px 24px;
+      font-size: 14px;
+      text-align: center;
+      min-width: 280px;
+      min-height: 48px;
+    }
+
+    /* ── ADMIN PANEL ── */
+    .admin-panel {
+      background: #16213e;
+      border: 1px solid #4361ee44;
+      border-radius: 12px;
+      padding: 20px 28px;
+      width: 100%;
+      max-width: 480px;
+    }
+    .admin-panel h3 {
+      color: #f8961e;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+    .admin-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+    .admin-btns button {
+      background: #4361ee;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .admin-btns button:hover { background: #3451d1; }
+
+    /* ── LOGOUT ── */
+    .logout-btn {
+      background: transparent;
+      color: #8d99ae;
+      border: 1px solid #8d99ae44;
+      padding: 8px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all .2s;
+    }
+    .logout-btn:hover { color: white; border-color: white; }
+  </style>
 </head>
 <body>
-  <div class="dashboard-container">
-    <h2>Escanea tu QR para fichar</h2>
-    <div id="reader" style="width:300px;"></div>
-    <p id="status"></p>
-    <button id="logout">Cerrar sesión</button>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">🏪 QR Access Logger</div>
+    <div class="user-info">
+      <strong id="topUser">—</strong><br>
+      <span id="topTienda" class="tienda-badge">—</span><br>
+      <span id="topRol"></span> · <span id="topHora">—</span>
+    </div>
   </div>
 
-  <script>
-    // Verifica que esté logueado
-    if(!localStorage.getItem("user")) {
-      window.location.href = "index.html";
+  <!-- MAIN -->
+  <div class="main">
+    <div class="store-title">Tienda: <span id="nombreTienda">—</span></div>
+
+    <div class="fichar-btns">
+      <button class="btn-entrada" id="btnEntrada">
+        <span class="btn-icon">✅</span>
+        ENTRADA
+      </button>
+      <button class="btn-salida" id="btnSalida">
+        <span class="btn-icon">🚪</span>
+        SALIDA
+      </button>
+    </div>
+
+    <div class="status-box" id="statusBox">Pulsa un botón para registrar tu fichaje.</div>
+
+    <!-- Panel admin (solo visible para admins) -->
+    <div class="admin-panel" id="adminPanel" style="display:none;">
+      <h3>🔐 Panel de Administrador</h3>
+      <div class="admin-btns">
+        <button onclick="irAdmin('empleados')">👤 Empleados</button>
+        <button onclick="irAdmin('fichajes')">📋 Ver Fichajes</button>
+        <button onclick="irAdmin('terminales')">🖥️ Terminales</button>
+        <button onclick="irAdmin('generar-qr')">🔗 Generar QR de Tienda</button>
+      </div>
+    </div>
+
+    <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
+      authDomain: "basededatos-dd6b3.firebaseapp.com",
+      projectId: "basededatos-dd6b3",
+      storageBucket: "basededatos-dd6b3.firebasestorage.app",
+      messagingSenderId: "452860965959",
+      appId: "1:452860965959:web:42ecb1c31f17e55daa6d62"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ── Auth check ──
+    const user      = localStorage.getItem("user");
+    const rol       = localStorage.getItem("rol");
+    const loginTime = localStorage.getItem("loginTime");
+
+    if (!user) { window.location.href = "index.html"; }
+
+    // ── Tienda desde URL ──
+    const params = new URLSearchParams(window.location.search);
+    const tienda = params.get("tienda") || "Sin tienda asignada";
+
+    // ── Top bar info ──
+    document.getElementById('topUser').textContent   = user;
+    document.getElementById('topTienda').textContent = tienda;
+    document.getElementById('topHora').textContent   = loginTime || "—";
+    document.getElementById('nombreTienda').textContent = tienda;
+    const rolEl = document.getElementById('topRol');
+    rolEl.textContent = rol === "admin" ? "Administrador" : "Empleado";
+    if (rol === "admin") rolEl.className = "rol-admin";
+
+    // ── Admin panel ──
+    if (rol === "admin") {
+      document.getElementById('adminPanel').style.display = "block";
     }
 
-    const status = document.getElementById('status');
-    const logout = document.getElementById('logout');
-
-    // Inicializar escaneo QR
-    function onScanSuccess(decodedText, decodedResult) {
-      status.textContent = `Fichaje registrado: ${decodedText}`;
-      html5QrcodeScanner.clear(); // Para detener el escaneo
+    // ── Geolocalización ──
+    function obtenerUbicacion() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          ()  => resolve(null)
+        );
+      });
     }
 
-    var html5QrcodeScanner = new Html5Qrcode("reader");
-    html5QrcodeScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
+    // ── Fichar ──
+    async function fichar(tipo) {
+      const btnE = document.getElementById('btnEntrada');
+      const btnS = document.getElementById('btnSalida');
+      const status = document.getElementById('statusBox');
 
-    // Logout
-    logout.addEventListener('click', () => {
+      btnE.disabled = btnS.disabled = true;
+      status.textContent = "Registrando...";
+
+      const loc = await obtenerUbicacion();
+      const now = new Date();
+
+      try {
+        // Colección por tienda: fichajes_<tiendaSlug>
+        const slug = tienda.toLowerCase().replace(/\s+/g, "_");
+        await addDoc(collection(db, `fichajes_${slug}`), {
+          usuario:      user,
+          rol,
+          tienda,
+          tipo,                          // "entrada" | "salida"
+          fecha:        now.toLocaleDateString("es-ES"),
+          hora:         now.toLocaleTimeString("es-ES"),
+          timestamp:    now.toISOString(),
+          localizacion: loc || null
+        });
+
+        const emoji = tipo === "entrada" ? "✅" : "🚪";
+        status.textContent = `${emoji} ${tipo.charAt(0).toUpperCase()+tipo.slice(1)} registrada a las ${now.toLocaleTimeString("es-ES")} — ${tienda}`;
+      } catch (err) {
+        status.textContent = "❌ Error al registrar. Comprueba tu conexión.";
+        console.error(err);
+      }
+
+      // Rehabilitar botones tras 3 segundos
+      setTimeout(() => { btnE.disabled = btnS.disabled = false; }, 3000);
+    }
+
+    document.getElementById('btnEntrada').addEventListener('click', () => fichar('entrada'));
+    document.getElementById('btnSalida').addEventListener('click',  () => fichar('salida'));
+
+    // ── Logout ──
+    document.getElementById('logoutBtn').addEventListener('click', () => {
       localStorage.removeItem("user");
+      localStorage.removeItem("rol");
+      localStorage.removeItem("loginTime");
       window.location.href = "index.html";
     });
+
+    // ── Navegación admin ──
+    window.irAdmin = (seccion) => {
+      if (rol !== "admin") { alert("Solo los administradores pueden acceder."); return; }
+      window.location.href = `admin.html?seccion=${seccion}`;
+    };
   </script>
 </body>
-</html>
+</html>  
