@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fichaje QR – Login</title>
+  <title>QRAccess – Login</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,6 +17,7 @@
       --text:    #e2e8f0;
       --muted:   #4b5e72;
       --danger:  #f43f5e;
+      --success: #10b981;
     }
 
     body {
@@ -30,7 +31,6 @@
       overflow: hidden;
     }
 
-    /* animated grid background */
     body::before {
       content: '';
       position: fixed; inset: 0;
@@ -42,7 +42,6 @@
       pointer-events: none;
     }
 
-    /* glowing orb */
     body::after {
       content: '';
       position: fixed;
@@ -69,7 +68,6 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* top accent line */
     .card::before {
       content: '';
       position: absolute;
@@ -97,9 +95,7 @@
       margin-bottom: 36px;
     }
 
-    .field {
-      margin-bottom: 14px;
-    }
+    .field { margin-bottom: 14px; }
     .field label {
       display: block;
       font-size: 10px;
@@ -192,7 +188,6 @@
   <script>
     let geoCoords = null;
 
-    // Pedir ubicación en segundo plano
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => { geoCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
@@ -207,6 +202,7 @@
       const btn      = document.getElementById('btnLogin');
 
       errorEl.classList.remove('show');
+
       if (!username || !password) {
         errorEl.textContent = 'Rellena usuario y contraseña';
         errorEl.classList.add('show');
@@ -232,7 +228,11 @@
           return;
         }
 
-        window.location.href = data.rol === 'admin' ? '/' : '/';
+        // ✅ CORRECCIÓN: guardar token y datos en localStorage antes de redirigir
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify({ username: data.username, rol: data.rol }));
+
+        window.location.href = data.rol === 'admin' ? '/admin.html' : '/dashboard.html';
 
       } catch(_) {
         errorEl.textContent = 'No se pudo conectar con el servidor';
