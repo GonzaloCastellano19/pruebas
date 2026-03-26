@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Fichaje QR</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <div class="dashboard-container">
+    <h2>Escanea tu QR para fichar</h2>
+    <div id="reader" style="width:300px;"></div>
+    <p id="status"></p>
+    <button id="logout">Cerrar sesión</button>
+  </div>
+
+  <script>
+    // Verifica que esté logueado
+    if(!localStorage.getItem("user")) {
+      window.location.href = "index.html";
+    }
+
+    const status = document.getElementById('status');
+    const logout = document.getElementById('logout');
+
+    // Inicializar escaneo QR
+    function onScanSuccess(decodedText, decodedResult) {
+      status.textContent = `Fichaje registrado: ${decodedText}`;
+      html5QrcodeScanner.clear(); // Para detener el escaneo
+    }
+
+    var html5QrcodeScanner = new Html5Qrcode("reader");
+    html5QrcodeScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250 },
+      onScanSuccess
+    );
+
+    // Logout
+    logout.addEventListener('click', () => {
+      localStorage.removeItem("user");
+      window.location.href = "index.html";
+    });
+  </script>
+</body>
+</html>

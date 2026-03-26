@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="login-container">
+    <h2>Iniciar sesión</h2>
+    <form id="loginForm">
+      <input type="text" id="username" placeholder="Usuario" required>
+      <input type="password" id="password" placeholder="Contraseña" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <p id="error" class="error"></p>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const error = document.getElementById('error');
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Login básico sin backend (para prueba)
+      if(username === "admin" && password === "1234") {
+        localStorage.setItem("user", username);
+        window.location.href = "dashboard.html";
+      } else {
+        error.textContent = "Usuario o contraseña incorrectos";
+      }
+    });
+  </script>
+  <script type="module">
+  // Import de las funciones de la base de datos
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// Configuración de la base de datos
+const firebaseConfig = {
+  apiKey: "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
+  authDomain: "basededatos-dd6b3.firebaseapp.com",
+  projectId: "basededatos-dd6b3",
+  storageBucket: "basededatos-dd6b3.firebasestorage.app",
+  messagingSenderId: "452860965959",
+  appId: "1:452860965959:web:42ecb1c31f17e55daa6d62",
+  measurementId: "G-HF8LLPE2SL"
+};
+
+// Inicialización de la base de datos
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+     </script>
+</body>
+</html>
