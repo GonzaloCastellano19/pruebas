@@ -2,45 +2,330 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Fichaje QR</title>
-  <link rel="stylesheet" href="index.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QRAccess – Fichaje</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <!-- ✅ CORRECCIÓN: URL correcta de la librería QR -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0b0f1a;
+      --surface: #111827;
+      --border:  #1f2d40;
+      --accent:  #00e5ff;
+      --text:    #e2e8f0;
+      --muted:   #4b5e72;
+      --danger:  #f43f5e;
+      --success: #10b981;
+    }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 20px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .4;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, #00e5ff18 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -60%);
+      pointer-events: none;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      background: rgba(17,24,39,.9);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 10;
+    }
+
+    .topbar .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      color: white;
+    }
+    .topbar .logo span { color: var(--accent); }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .btn-logout {
+      padding: 6px 14px;
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(244,63,94,.3);
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .btn-logout:hover {
+      background: rgba(244,63,94,.1);
+      border-color: var(--danger);
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 32px 32px;
+      box-shadow: 0 0 60px rgba(0,229,255,.06), 0 24px 64px rgba(0,0,0,.6);
+      animation: fadeUp .5s ease both;
+      margin-top: 20px;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 40px; right: 40px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      border-radius: 2px;
+    }
+
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    /* QR scanner container */
+    #reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    /* Forzar que los controles internos de html5-qrcode tengan estilo coherente */
+    #reader select, #reader button, #reader input {
+      background: var(--surface) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 6px !important;
+      font-family: 'DM Mono', monospace !important;
+      font-size: 12px !important;
+      padding: 4px 8px !important;
+    }
+
+    .status-box {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+    }
+    .status-box.ok {
+      display: block;
+      background: rgba(16,185,129,.1);
+      border: 1px solid rgba(16,185,129,.3);
+      color: var(--success);
+    }
+    .status-box.err {
+      display: block;
+      background: rgba(244,63,94,.1);
+      border: 1px solid rgba(244,63,94,.3);
+      color: var(--danger);
+    }
+
+    .scan-again {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(0,229,255,.3);
+      border-radius: 10px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+      display: none;
+    }
+    .scan-again:hover {
+      background: rgba(0,229,255,.08);
+      border-color: var(--accent);
+    }
+    .scan-again.show { display: block; }
+
+    .timestamp {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <div class="dashboard-container">
-    <h2>Escanea tu QR para fichar</h2>
-    <div id="reader" style="width:300px;"></div>
-    <p id="status"></p>
-    <button id="logout">Cerrar sesión</button>
+
+  <div class="topbar">
+    <div class="logo">QR<span>Access</span></div>
+    <div class="user-info">
+      <span id="userLabel">—</span>
+      <button class="btn-logout" id="btnLogout">Salir</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Escáner de Fichaje</div>
+    <div class="card-sub">Apunta la cámara al código QR</div>
+
+    <div id="reader"></div>
+    <div class="status-box" id="statusBox"></div>
+    <button class="scan-again" id="btnScanAgain">Escanear de nuevo</button>
+    <div class="timestamp" id="timestamp"></div>
   </div>
 
   <script>
-    // Verifica que esté logueado
-    if(!localStorage.getItem("user")) {
-      window.location.href = "index.html";
+    // ─── Protección de ruta ───────────────────────────────────────────────────
+    const userRaw = localStorage.getItem('user');
+    const token   = localStorage.getItem('token');
+    if (!userRaw || !token) {
+      window.location.href = 'index.html';
     }
 
-    const status = document.getElementById('status');
-    const logout = document.getElementById('logout');
+    const user = JSON.parse(userRaw);
+    document.getElementById('userLabel').textContent = user.username || 'Usuario';
 
-    // Inicializar escaneo QR
-    function onScanSuccess(decodedText, decodedResult) {
-      status.textContent = `Fichaje registrado: ${decodedText}`;
-      html5QrcodeScanner.clear(); // Para detener el escaneo
-    }
-
-    var html5QrcodeScanner = new Html5Qrcode("reader");
-    html5QrcodeScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
-
-    // Logout
-    logout.addEventListener('click', () => {
-      localStorage.removeItem("user");
-      window.location.href = "index.html";
+    // ─── Logout ───────────────────────────────────────────────────────────────
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+      } catch(_) {}
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = 'index.html';
     });
+
+    // ─── Escáner QR ──────────────────────────────────────────────────────────
+    const statusBox   = document.getElementById('statusBox');
+    const btnScanAgain = document.getElementById('btnScanAgain');
+    const timestampEl  = document.getElementById('timestamp');
+    let scanner = null;
+
+    // ✅ CORRECCIÓN: usar Html5QrcodeScanner (la clase correcta con UI integrada)
+    function initScanner() {
+      statusBox.className = 'status-box';
+      statusBox.textContent = '';
+      btnScanAgain.classList.remove('show');
+      timestampEl.textContent = '';
+
+      scanner = new Html5QrcodeScanner('reader', {
+        fps: 10,
+        qrbox: { width: 240, height: 240 },
+        rememberLastUsedCamera: true,
+        showTorchButtonIfSupported: true
+      }, false);
+
+      scanner.render(onScanSuccess, onScanError);
+    }
+
+    async function onScanSuccess(decodedText) {
+      // Detener el escáner inmediatamente
+      try { await scanner.clear(); } catch(_) {}
+
+      const now = new Date();
+      timestampEl.textContent = `🕐 ${now.toLocaleDateString('es-ES')} ${now.toLocaleTimeString('es-ES')}`;
+
+      // Enviar fichaje al backend
+      try {
+        const res = await fetch('/api/fichajes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ qr: decodedText })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          statusBox.className = 'status-box ok';
+          statusBox.textContent = `✅ Fichaje registrado correctamente · ${data.tipo || 'entrada'}`;
+        } else {
+          statusBox.className = 'status-box err';
+          statusBox.textContent = `❌ ${data.error || 'Error al registrar el fichaje'}`;
+        }
+      } catch(_) {
+        statusBox.className = 'status-box err';
+        statusBox.textContent = '❌ No se pudo conectar con el servidor';
+      }
+
+      btnScanAgain.classList.add('show');
+    }
+
+    function onScanError() {
+      // Ignorar errores de lectura (son continuos mientras no encuentra QR)
+    }
+
+    btnScanAgain.addEventListener('click', initScanner);
+
+    // Iniciar al cargar
+    initScanner();
   </script>
 </body>
 </html>
