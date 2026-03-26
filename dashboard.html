@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QRAccess – Fichaje</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-  <!-- ✅ CORRECCIÓN: URL correcta de la librería QR -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg:      #0b0f1a;
       --surface: #111827;
@@ -20,7 +18,6 @@
       --danger:  #f43f5e;
       --success: #10b981;
     }
-
     body {
       font-family: 'DM Mono', monospace;
       background: var(--bg);
@@ -30,10 +27,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
-      padding: 20px;
+      padding: 80px 20px 20px;
     }
-
     body::before {
       content: '';
       position: fixed; inset: 0;
@@ -44,7 +39,6 @@
       opacity: .4;
       pointer-events: none;
     }
-
     body::after {
       content: '';
       position: fixed;
@@ -54,12 +48,11 @@
       transform: translate(-50%, -60%);
       pointer-events: none;
     }
-
     .topbar {
       position: fixed;
       top: 0; left: 0; right: 0;
       height: 56px;
-      background: rgba(17,24,39,.9);
+      background: rgba(17,24,39,.95);
       border-bottom: 1px solid var(--border);
       backdrop-filter: blur(12px);
       display: flex;
@@ -68,7 +61,6 @@
       padding: 0 24px;
       z-index: 10;
     }
-
     .topbar .logo {
       font-family: 'Syne', sans-serif;
       font-size: 18px;
@@ -76,7 +68,6 @@
       color: white;
     }
     .topbar .logo span { color: var(--accent); }
-
     .user-info {
       display: flex;
       align-items: center;
@@ -84,7 +75,6 @@
       font-size: 12px;
       color: var(--muted);
     }
-
     .btn-logout {
       padding: 6px 14px;
       background: transparent;
@@ -96,13 +86,9 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       cursor: pointer;
-      transition: background .2s, border-color .2s;
+      transition: background .2s;
     }
-    .btn-logout:hover {
-      background: rgba(244,63,94,.1);
-      border-color: var(--danger);
-    }
-
+    .btn-logout:hover { background: rgba(244,63,94,.1); border-color: var(--danger); }
     .card {
       position: relative;
       width: 100%;
@@ -113,14 +99,11 @@
       padding: 36px 32px 32px;
       box-shadow: 0 0 60px rgba(0,229,255,.06), 0 24px 64px rgba(0,0,0,.6);
       animation: fadeUp .5s ease both;
-      margin-top: 20px;
     }
-
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(20px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-
     .card::before {
       content: '';
       position: absolute;
@@ -129,7 +112,6 @@
       background: linear-gradient(90deg, transparent, var(--accent), transparent);
       border-radius: 2px;
     }
-
     .card-title {
       font-family: 'Syne', sans-serif;
       font-size: 16px;
@@ -144,8 +126,6 @@
       text-transform: uppercase;
       margin-bottom: 24px;
     }
-
-    /* QR scanner container */
     #reader {
       width: 100%;
       border-radius: 12px;
@@ -153,24 +133,12 @@
       border: 1px solid var(--border);
       background: var(--bg);
     }
-
-    /* Forzar que los controles internos de html5-qrcode tengan estilo coherente */
-    #reader select, #reader button, #reader input {
-      background: var(--surface) !important;
-      color: var(--text) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 6px !important;
-      font-family: 'DM Mono', monospace !important;
-      font-size: 12px !important;
-      padding: 4px 8px !important;
-    }
-
     .status-box {
       margin-top: 18px;
       padding: 14px 16px;
       border-radius: 10px;
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.6;
       display: none;
     }
     .status-box.ok {
@@ -185,8 +153,7 @@
       border: 1px solid rgba(244,63,94,.3);
       color: var(--danger);
     }
-
-    .scan-again {
+    .btn-rescan {
       width: 100%;
       margin-top: 14px;
       padding: 12px;
@@ -200,17 +167,13 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       cursor: pointer;
-      transition: background .2s, border-color .2s;
+      transition: background .2s;
       display: none;
     }
-    .scan-again:hover {
-      background: rgba(0,229,255,.08);
-      border-color: var(--accent);
-    }
-    .scan-again.show { display: block; }
-
+    .btn-rescan:hover { background: rgba(0,229,255,.08); border-color: var(--accent); }
+    .btn-rescan.show  { display: block; }
     .timestamp {
-      margin-top: 14px;
+      margin-top: 12px;
       font-size: 11px;
       color: var(--muted);
       text-align: center;
@@ -230,101 +193,116 @@
   <div class="card">
     <div class="card-title">Escáner de Fichaje</div>
     <div class="card-sub">Apunta la cámara al código QR</div>
-
     <div id="reader"></div>
     <div class="status-box" id="statusBox"></div>
-    <button class="scan-again" id="btnScanAgain">Escanear de nuevo</button>
+    <button class="btn-rescan" id="btnRescan">Escanear de nuevo</button>
     <div class="timestamp" id="timestamp"></div>
   </div>
 
+  <!-- Firebase SDK compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
   <script>
-    // ─── Protección de ruta ───────────────────────────────────────────────────
+    // ── Protección de ruta ───────────────────────────────────────────────────
     const userRaw = localStorage.getItem('user');
-    const token   = localStorage.getItem('token');
-    if (!userRaw || !token) {
-      window.location.href = 'index.html';
-    }
-
+    if (!userRaw) { window.location.href = 'index.html'; }
     const user = JSON.parse(userRaw);
-    document.getElementById('userLabel').textContent = user.username || 'Usuario';
+    document.getElementById('userLabel').textContent = user.nombre || user.email;
 
-    // ─── Logout ───────────────────────────────────────────────────────────────
-    document.getElementById('btnLogout').addEventListener('click', async () => {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-      } catch(_) {}
-      localStorage.removeItem('token');
+    // ── Firebase ─────────────────────────────────────────────────────────────
+    // Evitar doble inicialización si ya está inicializado
+    if (!firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey:            "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
+        authDomain:        "basededatos-dd6b3.firebaseapp.com",
+        projectId:         "basededatos-dd6b3",
+        storageBucket:     "basededatos-dd6b3.firebasestorage.app",
+        messagingSenderId: "452860965959",
+        appId:             "1:452860965959:web:42ecb1c31f17e55daa6d62"
+      });
+    }
+    const db = firebase.firestore();
+
+    // ── Logout ───────────────────────────────────────────────────────────────
+    document.getElementById('btnLogout').addEventListener('click', () => {
       localStorage.removeItem('user');
       window.location.href = 'index.html';
     });
 
-    // ─── Escáner QR ──────────────────────────────────────────────────────────
-    const statusBox   = document.getElementById('statusBox');
-    const btnScanAgain = document.getElementById('btnScanAgain');
-    const timestampEl  = document.getElementById('timestamp');
+    // ── Escáner QR ───────────────────────────────────────────────────────────
+    const statusBox  = document.getElementById('statusBox');
+    const btnRescan  = document.getElementById('btnRescan');
+    const timestampEl = document.getElementById('timestamp');
     let scanner = null;
 
-    // ✅ CORRECCIÓN: usar Html5QrcodeScanner (la clase correcta con UI integrada)
     function initScanner() {
-      statusBox.className = 'status-box';
+      statusBox.className  = 'status-box';
       statusBox.textContent = '';
-      btnScanAgain.classList.remove('show');
+      btnRescan.classList.remove('show');
       timestampEl.textContent = '';
+
+      // Limpiar instancia anterior si existe
+      if (scanner) {
+        try { scanner.clear(); } catch(_) {}
+      }
 
       scanner = new Html5QrcodeScanner('reader', {
         fps: 10,
         qrbox: { width: 240, height: 240 },
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true
-      }, false);
+      }, /* verbose= */ false);
 
-      scanner.render(onScanSuccess, onScanError);
+      scanner.render(onScanSuccess, () => {});
     }
 
     async function onScanSuccess(decodedText) {
-      // Detener el escáner inmediatamente
+      // Parar escáner
       try { await scanner.clear(); } catch(_) {}
 
       const now = new Date();
-      timestampEl.textContent = `🕐 ${now.toLocaleDateString('es-ES')} ${now.toLocaleTimeString('es-ES')}`;
+      timestampEl.textContent = `🕐 ${now.toLocaleDateString('es-ES')} · ${now.toLocaleTimeString('es-ES')}`;
 
-      // Enviar fichaje al backend
       try {
-        const res = await fetch('/api/fichajes', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({ qr: decodedText })
-        });
-        const data = await res.json();
+        // Determinar tipo: si el último fichaje fue entrada → ahora es salida
+        const ultimoSnap = await db.collection('fichajes')
+          .where('userId', '==', user.id)
+          .orderBy('timestamp', 'desc')
+          .limit(1)
+          .get();
 
-        if (res.ok) {
-          statusBox.className = 'status-box ok';
-          statusBox.textContent = `✅ Fichaje registrado correctamente · ${data.tipo || 'entrada'}`;
-        } else {
-          statusBox.className = 'status-box err';
-          statusBox.textContent = `❌ ${data.error || 'Error al registrar el fichaje'}`;
+        let tipo = 'entrada';
+        if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') {
+          tipo = 'salida';
         }
-      } catch(_) {
-        statusBox.className = 'status-box err';
-        statusBox.textContent = '❌ No se pudo conectar con el servidor';
+
+        // Guardar fichaje en Firestore
+        await db.collection('fichajes').add({
+          userId:    user.id,
+          email:     user.email,
+          nombre:    user.nombre   || '',
+          empresa:   user.empresa  || '',
+          qr:        decodedText,
+          tipo,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        statusBox.className   = 'status-box ok';
+        statusBox.textContent = `✅ Fichaje de ${tipo} registrado correctamente`;
+
+      } catch (err) {
+        console.error(err);
+        statusBox.className   = 'status-box err';
+        statusBox.textContent = '❌ Error al guardar el fichaje: ' + err.message;
       }
 
-      btnScanAgain.classList.add('show');
+      btnRescan.classList.add('show');
     }
 
-    function onScanError() {
-      // Ignorar errores de lectura (son continuos mientras no encuentra QR)
-    }
+    document.getElementById('btnRescan').addEventListener('click', initScanner);
 
-    btnScanAgain.addEventListener('click', initScanner);
-
-    // Iniciar al cargar
+    // Arrancar al cargar
     initScanner();
   </script>
 </body>
