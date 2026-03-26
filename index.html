@@ -7,19 +7,15 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg:      #0b0f1a;
       --surface: #111827;
       --border:  #1f2d40;
       --accent:  #00e5ff;
-      --accent2: #7c3aed;
       --text:    #e2e8f0;
       --muted:   #4b5e72;
       --danger:  #f43f5e;
-      --success: #10b981;
     }
-
     body {
       font-family: 'DM Mono', monospace;
       background: var(--bg);
@@ -30,7 +26,6 @@
       justify-content: center;
       overflow: hidden;
     }
-
     body::before {
       content: '';
       position: fixed; inset: 0;
@@ -41,7 +36,6 @@
       opacity: .4;
       pointer-events: none;
     }
-
     body::after {
       content: '';
       position: fixed;
@@ -51,7 +45,6 @@
       transform: translate(-50%, -60%);
       pointer-events: none;
     }
-
     .card {
       position: relative;
       width: 380px;
@@ -62,12 +55,10 @@
       box-shadow: 0 0 60px rgba(0,229,255,.06), 0 24px 64px rgba(0,0,0,.6);
       animation: fadeUp .5s ease both;
     }
-
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(20px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-
     .card::before {
       content: '';
       position: absolute;
@@ -76,17 +67,14 @@
       background: linear-gradient(90deg, transparent, var(--accent), transparent);
       border-radius: 2px;
     }
-
     .logo {
       font-family: 'Syne', sans-serif;
       font-size: 22px;
       font-weight: 800;
-      letter-spacing: -0.5px;
       color: white;
       margin-bottom: 6px;
     }
     .logo span { color: var(--accent); }
-
     .subtitle {
       font-size: 11px;
       color: var(--muted);
@@ -94,7 +82,6 @@
       text-transform: uppercase;
       margin-bottom: 36px;
     }
-
     .field { margin-bottom: 14px; }
     .field label {
       display: block;
@@ -121,7 +108,6 @@
       box-shadow: 0 0 0 3px rgba(0,229,255,.1);
     }
     .field input::placeholder { color: var(--muted); }
-
     .btn {
       width: 100%;
       margin-top: 8px;
@@ -138,10 +124,9 @@
       cursor: pointer;
       transition: opacity .2s, transform .1s;
     }
-    .btn:hover   { opacity: .9; }
-    .btn:active  { transform: scale(.98); }
+    .btn:hover  { opacity: .9; }
+    .btn:active { transform: scale(.98); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
-
     .error {
       margin-top: 14px;
       padding: 10px 14px;
@@ -153,7 +138,6 @@
       display: none;
     }
     .error.show { display: block; }
-
     .geo-note {
       margin-top: 18px;
       font-size: 11px;
@@ -169,8 +153,8 @@
     <div class="subtitle">Sistema de Fichaje</div>
 
     <div class="field">
-      <label>Usuario</label>
-      <input type="text" id="username" placeholder="admin" autocomplete="off">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="usuario@empresa.com" autocomplete="off">
     </div>
     <div class="field">
       <label>Contraseña</label>
@@ -180,14 +164,32 @@
     <button class="btn" id="btnLogin">Entrar</button>
     <div class="error" id="error"></div>
 
-    <p class="geo-note" id="geoNote">
+    <p class="geo-note">
       <span>📍</span> Se registrará tu ubicación al acceder
     </p>
   </div>
 
-  <script>
-    let geoCoords = null;
+  <!-- Firebase SDK compat (sin bundler, funciona directo en el navegador) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
+  <script>
+    // ── Firebase config ──────────────────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey:            "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
+      authDomain:        "basededatos-dd6b3.firebaseapp.com",
+      projectId:         "basededatos-dd6b3",
+      storageBucket:     "basededatos-dd6b3.firebasestorage.app",
+      messagingSenderId: "452860965959",
+      appId:             "1:452860965959:web:42ecb1c31f17e55daa6d62",
+      measurementId:     "G-HF8LLPE2SL"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // ── Geolocalización en segundo plano ────────────────────────────────────
+    let geoCoords = null;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => { geoCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
@@ -195,16 +197,17 @@
       );
     }
 
+    // ── Login ────────────────────────────────────────────────────────────────
     async function doLogin() {
-      const username = document.getElementById('username').value.trim();
+      const email    = document.getElementById('email').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
       const errorEl  = document.getElementById('error');
       const btn      = document.getElementById('btnLogin');
 
       errorEl.classList.remove('show');
 
-      if (!username || !password) {
-        errorEl.textContent = 'Rellena usuario y contraseña';
+      if (!email || !password) {
+        errorEl.textContent = 'Rellena email y contraseña';
         errorEl.classList.add('show');
         return;
       }
@@ -213,29 +216,55 @@
       btn.textContent = 'Conectando...';
 
       try {
-        const res  = await fetch('/api/auth/login', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ username, password, lat: geoCoords?.lat, lng: geoCoords?.lng })
-        });
-        const data = await res.json();
+        // Buscar en colección "usuarios" por email + password
+        const snap = await db.collection('usuarios')
+          .where('email',    '==', email)
+          .where('password', '==', password)
+          .limit(1)
+          .get();
 
-        if (!res.ok) {
-          errorEl.textContent = data.error || 'Credenciales incorrectas';
+        if (snap.empty) {
+          errorEl.textContent = 'Email o contraseña incorrectos';
           errorEl.classList.add('show');
           btn.disabled    = false;
           btn.textContent = 'Entrar';
           return;
         }
 
-        // ✅ CORRECCIÓN: guardar token y datos en localStorage antes de redirigir
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({ username: data.username, rol: data.rol }));
+        const doc      = snap.docs[0];
+        const userData = doc.data();
 
-        window.location.href = data.rol === 'admin' ? '/admin.html' : '/dashboard.html';
+        // ✅ Guardar sesión en localStorage
+        localStorage.setItem('user', JSON.stringify({
+          id:      doc.id,
+          email:   userData.email,
+          nombre:  userData.nombre  || '',
+          rol:     userData.rol     || 'empleado',
+          empresa: userData.empresa || ''
+        }));
 
-      } catch(_) {
-        errorEl.textContent = 'No se pudo conectar con el servidor';
+        // Registrar acceso en Firestore
+        await db.collection('accesos').add({
+          userId:    doc.id,
+          email:     userData.email,
+          nombre:    userData.nombre   || '',
+          empresa:   userData.empresa  || '',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          lat:       geoCoords ? geoCoords.lat : null,
+          lng:       geoCoords ? geoCoords.lng : null
+        });
+
+        // Redirigir según rol
+        window.location.href = userData.rol === 'admin' ? 'admin.html' : 'dashboard.html';
+
+      } catch (err) {
+        console.error('Firebase error:', err);
+        // Error de permisos de Firestore → reglas de seguridad
+        if (err.code === 'permission-denied') {
+          errorEl.textContent = 'Error de permisos en la base de datos. Revisa las reglas de Firestore.';
+        } else {
+          errorEl.textContent = 'Error al conectar con la base de datos: ' + err.message;
+        }
         errorEl.classList.add('show');
         btn.disabled    = false;
         btn.textContent = 'Entrar';
@@ -243,7 +272,7 @@
     }
 
     document.getElementById('btnLogin').addEventListener('click', doLogin);
-    ['username','password'].forEach(id =>
+    ['email', 'password'].forEach(id =>
       document.getElementById(id).addEventListener('keydown', e => {
         if (e.key === 'Enter') doLogin();
       })
