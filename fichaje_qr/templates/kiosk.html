@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiosco Fichaje</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    h1 { font-size: 1.8rem; font-weight: 600; letter-spacing: -0.5px; }
+    p.subtitle { color: #94a3b8; font-size: 0.95rem; }
+
+    #video-container {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid #334155;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Marco de escaneo */
+    .scan-frame {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .scan-frame::before,
+    .scan-frame::after {
+      content: "";
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-color: #38bdf8;
+      border-style: solid;
+    }
+    .scan-frame::before {
+      top: 20px; left: 20px;
+      border-width: 3px 0 0 3px;
+      border-radius: 4px 0 0 0;
+    }
+    .scan-frame::after {
+      bottom: 20px; right: 20px;
+      border-width: 0 3px 3px 0;
+      border-radius: 0 0 4px 0;
+    }
+
+    /* Línea de escaneo animada */
+    @keyframes scan {
+      0%   { top: 20px; }
+      100% { top: 280px; }
+    }
+    .scan-line {
+      position: absolute;
+      left: 20px; right: 20px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+      animation: scan 2s linear infinite;
+    }
+
+    #result-box {
+      width: 320px;
+      padding: 20px 24px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 1rem;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    #result-box.success-in  { background: #052e16; border-color: #16a34a; }
+    #result-box.success-out { background: #1e3a5f; border-color: #2563eb; }
+    #result-box.error       { background: #450a0a; border-color: #dc2626; }
+
+    #result-icon { font-size: 2rem; }
+    #result-name { font-size: 1.2rem; font-weight: 600; }
+    #result-direction { font-size: 0.9rem; color: #94a3b8; }
+    #result-time { font-size: 0.8rem; color: #64748b; }
+
+    #manual-section {
+      display: flex;
+      gap: 8px;
+      width: 320px;
+    }
+    #manual-token {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    #manual-token:focus { border-color: #38bdf8; }
+    #manual-btn {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      background: #0284c7;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    #manual-btn:hover { background: #0369a1; }
+
+    #cam-error {
+      color: #f87171;
+      font-size: 0.85rem;
+      text-align: center;
+      max-width: 300px;
+    }
+
+    a.admin-link {
+      color: #475569;
+      font-size: 0.8rem;
+      text-decoration: none;
+      margin-top: 8px;
+    }
+    a.admin-link:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+  <h1>Sistema de Fichaje</h1>
+  <p class="subtitle">Acerca tu código QR a la cámara</p>
+
+  <div id="video-container">
+    <video id="video" autoplay muted playsinline></video>
+    <div class="scan-frame">
+      <div class="scan-line"></div>
+    </div>
+  </div>
+
+  <p id="cam-error" hidden></p>
+
+  <div id="result-box">
+    <span id="result-icon">📷</span>
+    <span id="result-name">Esperando QR...</span>
+    <span id="result-direction"></span>
+    <span id="result-time"></span>
+  </div>
+
+  <div id="manual-section">
+    <input id="manual-token" type="text" placeholder="Pega token manualmente..." maxlength="32">
+    <button id="manual-btn">Fichar</button>
+  </div>
+
+  <a class="admin-link" href="/admin">Ir al panel de administración →</a>
+
+  <!-- jsQR: decodifica QR desde canvas sin dependencias externas -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script>
+    const video     = document.getElementById("video");
+    const resultBox = document.getElementById("result-box");
+    const icon      = document.getElementById("result-icon");
+    const nameEl    = document.getElementById("result-name");
+    const dirEl     = document.getElementById("result-direction");
+    const timeEl    = document.getElementById("result-time");
+    const camError  = document.getElementById("cam-error");
+
+    let scanning    = true;   // false mientras procesamos un fichaje
+    let canvas, ctx;
+
+    // ── Iniciar cámara ──────────────────────────────────────
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: 640, height: 640 }
+        });
+        video.srcObject = stream;
+        video.addEventListener("loadedmetadata", () => {
+          canvas = document.createElement("canvas");
+          ctx    = canvas.getContext("2d");
+          requestAnimationFrame(tick);
+        });
+      } catch (err) {
+        camError.hidden = false;
+        camError.textContent =
+          "No se pudo acceder a la cámara: " + err.message +
+          ". Usa el campo manual.";
+      }
+    }
+
+    // ── Bucle de análisis de frames ─────────────────────────
+    function tick() {
+      requestAnimationFrame(tick);
+      if (!scanning || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code && code.data) {
+        processToken(code.data.trim());
+      }
+    }
+
+    // ── Llamada al backend ──────────────────────────────────
+    async function processToken(token) {
+      if (!token) return;
+      scanning = false;
+      showState("loading", "Procesando...", "", "");
+
+      try {
+        const res  = await fetch("/api/checkin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qr_token: token })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          const isIn = data.direction === "IN";
+          showState(
+            isIn ? "success-in" : "success-out",
+            data.employee,
+            isIn ? "✅  ENTRADA registrada" : "🔵  SALIDA registrada",
+            data.timestamp
+          );
+        } else {
+          showState("error", data.error || "Error desconocido", "", "");
+        }
+      } catch (_) {
+        showState("error", "Sin conexión con el servidor", "", "");
+      }
+
+      // Espera 3 segundos y vuelve a escanear
+      setTimeout(() => {
+        showState("idle", "Esperando QR...", "", "");
+        scanning = true;
+      }, 3000);
+    }
+
+    function showState(type, name, direction, time) {
+      resultBox.className = "";
+      if (type === "success-in")  resultBox.classList.add("success-in");
+      if (type === "success-out") resultBox.classList.add("success-out");
+      if (type === "error")       resultBox.classList.add("error");
+
+      icon.textContent = type === "success-in"  ? "✅"
+                       : type === "success-out" ? "🔵"
+                       : type === "error"       ? "❌"
+                       : type === "loading"     ? "⏳"
+                       : "📷";
+      nameEl.textContent = name;
+      dirEl.textContent  = direction;
+      timeEl.textContent = time;
+    }
+
+    // ── Input manual ────────────────────────────────────────
+    document.getElementById("manual-btn").addEventListener("click", () => {
+      const t = document.getElementById("manual-token").value.trim();
+      if (t) { document.getElementById("manual-token").value = ""; processToken(t); }
+    });
+    document.getElementById("manual-token").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("manual-btn").click();
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>
