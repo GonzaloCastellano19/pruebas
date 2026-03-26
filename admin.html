@@ -107,6 +107,7 @@
     .qr-card::before { content: ''; display: block; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--accent2), transparent); border-radius: 2px; margin-bottom: 4px; }
     .qr-dept { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; color: white; text-align: center; }
     .qr-empresa { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .qr-loc { font-size: 10px; color: var(--muted); }
     .qr-box { background: white; padding: 12px; border-radius: 10px; }
     .qr-box canvas, .qr-box img { display: block; }
     .qr-actions { display: flex; gap: 8px; width: 100%; }
@@ -256,6 +257,8 @@
       <div class="modal-title">Nuevo departamento</div>
       <div class="field"><label>Nombre del departamento</label><input type="text" id="fDeptNombre" placeholder="Ej: Almacén, Oficina, Producción..."></div>
       <div class="field"><label>Empresa</label><input type="text" id="fDeptEmpresa" placeholder="Mi Empresa SL"></div>
+      <div class="field"><label>Latitud (opcional)</label><input type="number" step="any" id="fDeptLat" placeholder="Ej: 40.4168"></div>
+      <div class="field"><label>Longitud (opcional)</label><input type="number" step="any" id="fDeptLng" placeholder="Ej: -3.7038"></div>
       <div class="modal-err" id="modalDeptErr"></div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelDept">Cancelar</button>
@@ -496,9 +499,11 @@
     function renderQRCard(id, data) {
       const card = document.createElement('div');
       card.className = 'qr-card';
+      const locText = (data.lat != null && data.lng != null) ? `📍 ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}` : '📍 Sin ubicación configurada';
       card.innerHTML = `
         <div class="qr-dept">${data.nombre}</div>
         <div class="qr-empresa">${data.empresa||''}</div>
+        <div class="qr-loc">${locText}</div>
         <div class="qr-box" id="qrbox-${id}"></div>
         <div class="qr-actions">
           <button class="btn-download" onclick="verQR('${id}','${data.nombre}','${data.empresa||''}')">🔍 Ver / Descargar</button>
@@ -506,9 +511,10 @@
         </div>`;
       document.getElementById('qrGrid').appendChild(card);
 
-      // Generar QR pequeño — el contenido es el ID del departamento
+      // Generar QR pequeño — el contenido es la URL completa al login con el deptId
+      const qrUrl = `${location.origin}/index.html?dept=${id}`;
       new QRCode(document.getElementById('qrbox-' + id), {
-        text: id,
+        text: qrUrl,
         width: 140, height: 140,
         colorDark: '#000000', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.H
@@ -519,6 +525,8 @@
     document.getElementById('btnNuevoDept').addEventListener('click', () => {
       document.getElementById('fDeptNombre').value  = '';
       document.getElementById('fDeptEmpresa').value = me.empresa || '';
+      document.getElementById('fDeptLat').value     = '';
+      document.getElementById('fDeptLng').value     = '';
       document.getElementById('modalDeptErr').classList.remove('show');
       document.getElementById('ovDept').classList.add('show');
     });
@@ -527,13 +535,19 @@
     document.getElementById('btnGuardarDept').addEventListener('click', async () => {
       const nombre  = document.getElementById('fDeptNombre').value.trim();
       const empresa = document.getElementById('fDeptEmpresa').value.trim();
+      const latVal  = document.getElementById('fDeptLat').value;
+      const lngVal  = document.getElementById('fDeptLng').value;
+      const latDept = latVal !== '' ? parseFloat(latVal) : null;
+      const lngDept = lngVal !== '' ? parseFloat(lngVal) : null;
       const errEl   = document.getElementById('modalDeptErr');
       const btn     = document.getElementById('btnGuardarDept');
       errEl.classList.remove('show');
       if (!nombre) { errEl.textContent = 'El nombre es obligatorio'; errEl.classList.add('show'); return; }
+      if (latDept !== null && (isNaN(latDept) || latDept < -90 || latDept > 90)) { errEl.textContent = 'Latitud inválida (debe estar entre -90 y 90)'; errEl.classList.add('show'); return; }
+      if (lngDept !== null && (isNaN(lngDept) || lngDept < -180 || lngDept > 180)) { errEl.textContent = 'Longitud inválida (debe estar entre -180 y 180)'; errEl.classList.add('show'); return; }
       btn.disabled = true; btn.textContent = 'Creando...';
       try {
-        await db.collection('departamentos').add({ nombre, empresa, creadoEn: firebase.firestore.FieldValue.serverTimestamp() });
+        await db.collection('departamentos').add({ nombre, empresa, lat: latDept, lng: lngDept, creadoEn: firebase.firestore.FieldValue.serverTimestamp() });
         toast('✅ Departamento creado y QR generado');
         document.getElementById('ovDept').classList.remove('show');
         loadDepartamentos(); loadResumen();
@@ -550,12 +564,13 @@
     // Ver QR grande + descargar
     let currentQRData = null;
     function verQR(id, nombre, empresa) {
+      const qrUrl = `${location.origin}/index.html?dept=${id}`;
       document.getElementById('qrModalTitle').textContent = nombre;
-      document.getElementById('qrModalInfo').textContent  = empresa ? empresa + ' · ID: ' + id : 'ID: ' + id;
+      document.getElementById('qrModalInfo').textContent  = qrUrl;
       document.getElementById('qrModalCanvas').innerHTML  = '';
       currentQRData = { id, nombre };
       new QRCode(document.getElementById('qrModalCanvas'), {
-        text: id, width: 280, height: 280,
+        text: qrUrl, width: 280, height: 280,
         colorDark: '#000000', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.H
       });
@@ -592,15 +607,29 @@
             return;
           }
           document.getElementById('tablaFichajes').innerHTML = `<table><thead><tr>
-            <th>Nombre</th><th>Email</th><th>Departamento</th><th>Tipo</th><th>Hora exacta del fichaje</th>
+            <th>Nombre</th><th>Email</th><th>Departamento</th><th>Tipo</th><th>Hora exacta del fichaje</th><th>Jornada</th><th>H. Normal</th><th>H. Extra</th><th>Ubicación</th>
           </tr></thead><tbody>${snap.docs.map(d => {
             const f = d.data();
+            const jornada = f.duracionMin != null ? `${Math.floor(f.duracionMin/60)}h ${f.duracionMin%60}m` : '—';
+            const hNorm   = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '—';
+            const hExtra  = f.horasExtra   != null ? f.horasExtra.toFixed(2)    + 'h' : '—';
+            let ubicacion = '—';
+            if (f.lat != null && f.lng != null) {
+              const dist = f.distanciaDept != null ? ` (${Math.round(f.distanciaDept)}m)` : '';
+              ubicacion = `<a href="https://maps.google.com/?q=${f.lat},${f.lng}" target="_blank" style="color:var(--accent)">📍 Maps${dist}</a>`;
+            } else if (f.locError) {
+              ubicacion = `<span style="color:var(--muted);font-size:11px">${f.locError}</span>`;
+            }
             return `<tr>
               <td>${f.nombre||'—'}</td>
               <td style="color:var(--muted)">${f.email||'—'}</td>
               <td style="color:var(--muted)">${f.departamento||'—'}</td>
               <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
               <td style="color:var(--accent);letter-spacing:.5px">${fmt(f.timestamp)}</td>
+              <td style="color:var(--muted)">${jornada}</td>
+              <td style="color:var(--success)">${hNorm}</td>
+              <td style="color:var(--warn)">${hExtra}</td>
+              <td>${ubicacion}</td>
             </tr>`;
           }).join('')}</tbody></table>`;
         }, err => console.error(err));

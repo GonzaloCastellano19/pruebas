@@ -76,6 +76,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script>
+    // ── Leer parámetro ?dept de la URL y guardarlo para después del login ──────
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const pendingDept = urlParams.get('dept');
+      if (pendingDept) sessionStorage.setItem('pendingDept', pendingDept);
+    })();
+
     firebase.initializeApp({
       apiKey: "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
       authDomain: "basededatos-dd6b3.firebaseapp.com",
@@ -102,7 +109,14 @@
         }
         const doc = snap.docs[0]; const u = doc.data();
         localStorage.setItem('user', JSON.stringify({ id: doc.id, email: u.email, nombre: u.nombre || '', rol: u.rol || 'empleado', empresa: u.empresa || '' }));
-        window.location.href = u.rol === 'admin' ? 'admin.html' : 'dashboard.html';
+        const stored = sessionStorage.getItem('pendingDept');
+        if (stored && u.rol !== 'admin') {
+          window.location.href = `dashboard.html?dept=${stored}`;
+        } else if (u.rol === 'admin') {
+          window.location.href = 'admin.html';
+        } else {
+          window.location.href = 'dashboard.html';
+        }
       } catch(err) {
         errorEl.textContent = err.code === 'permission-denied' ? 'Error de permisos en Firestore. Revisa las reglas.' : 'Error: ' + err.message;
         errorEl.classList.add('show'); btn.disabled = false; btn.textContent = 'Entrar';

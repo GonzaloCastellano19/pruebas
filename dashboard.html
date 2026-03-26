@@ -53,8 +53,13 @@
     .status-box { margin-top: 18px; padding: 16px; border-radius: 10px; font-size: 13px; line-height: 1.6; display: none; }
     .status-box.ok  { display: block; background: rgba(16,185,129,.1);  border: 1px solid rgba(16,185,129,.3); color: var(--success); }
     .status-box.err { display: block; background: rgba(244,63,94,.1);   border: 1px solid rgba(244,63,94,.3);  color: var(--danger); }
+    .status-box.warn { display: block; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: #f59e0b; }
     .fichaje-hora { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--accent); margin-top: 6px; letter-spacing: 1px; }
     .fichaje-fecha { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .fichaje-detail { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.7; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .auto-msg { padding: 28px 16px; text-align: center; font-size: 13px; color: var(--muted); }
     .btn-rescan { width: 100%; margin-top: 14px; padding: 12px; background: transparent; color: var(--accent); border: 1px solid rgba(0,229,255,.3); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: background .2s; display: none; }
     .btn-rescan:hover { background: rgba(0,229,255,.08); border-color: var(--accent); }
     .btn-rescan.show { display: block; }
@@ -70,13 +75,14 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Escáner de Fichaje</div>
-    <div class="card-sub">Apunta la cámara al código QR del departamento</div>
+    <div class="card-title" id="card-title-text">Escáner de Fichaje</div>
+    <div class="card-sub" id="card-sub-text">Apunta la cámara al código QR del departamento</div>
     <div id="reader"></div>
     <div class="status-box" id="statusBox">
       <div id="statusMsg"></div>
       <div class="fichaje-hora"  id="fichajeHora"></div>
       <div class="fichaje-fecha" id="fichajeDate"></div>
+      <div class="fichaje-detail" id="fichajeDetail"></div>
     </div>
     <button class="btn-rescan" id="btnRescan">Escanear de nuevo</button>
   </div>
@@ -107,14 +113,182 @@
       localStorage.removeItem('user'); location.href = 'index.html';
     });
 
-    // ── Escáner ───────────────────────────────────────────────────────────────
+    // ── Constantes ────────────────────────────────────────────────────────────
+    const MAX_DISTANCIA_METROS = 200;
+    const HORAS_JORNADA_NORMAL = 8;
+
+    // ── Haversine ─────────────────────────────────────────────────────────────
+    function haversineMetros(lat1, lng1, lat2, lng2) {
+      const R = 6371000;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // ── Geolocalización ───────────────────────────────────────────────────────
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) { reject(new Error('Geolocalización no disponible en este navegador')); return; }
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          err => {
+            if (err.code === err.PERMISSION_DENIED) reject(new Error('Permiso de ubicación denegado'));
+            else if (err.code === err.POSITION_UNAVAILABLE) reject(new Error('Ubicación no disponible'));
+            else if (err.code === err.TIMEOUT) reject(new Error('Tiempo de espera de ubicación agotado'));
+            else reject(new Error('Error de geolocalización: ' + err.message));
+          },
+          { timeout: 10000, maximumAge: 0 }
+        );
+      });
+    }
+
+    // ── Utilidad UI ───────────────────────────────────────────────────────────
+    function showError(msg) {
+      const statusBox = document.getElementById('statusBox');
+      statusBox.className = 'status-box err';
+      document.getElementById('statusMsg').textContent = msg;
+      document.getElementById('fichajeHora').textContent  = '';
+      document.getElementById('fichajeDate').textContent  = '';
+      document.getElementById('fichajeDetail').textContent = '';
+      document.getElementById('btnRescan').classList.add('show');
+    }
+
+    function setReaderMsg(html) {
+      document.getElementById('reader').innerHTML = `<div class="auto-msg">${html}</div>`;
+    }
+
+    // ── Fichaje automático (con deptId desde URL/sessionStorage) ──────────────
+    async function procesarFichajeAutomatico(deptId) {
+      document.getElementById('card-title-text').textContent = 'Fichaje Automático';
+      document.getElementById('card-sub-text').textContent   = 'Validando ubicación y registrando fichaje...';
+
+      setReaderMsg('<span class="spinner"></span>📍 Obteniendo tu ubicación...');
+
+      const ahora = new Date();
+      const horaStr  = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const fechaStr = ahora.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+      // 1. Geolocalización
+      let empLat = null, empLng = null, locError = null;
+      try {
+        const pos = await getLocation();
+        empLat = pos.lat; empLng = pos.lng;
+      } catch(geoErr) {
+        locError = geoErr.message;
+        setReaderMsg('');
+        showError('❌ Debes permitir el acceso a tu ubicación para fichar. ' + geoErr.message);
+        return;
+      }
+
+      setReaderMsg('<span class="spinner"></span>🏢 Verificando departamento...');
+
+      try {
+        // 2. Verificar departamento
+        const deptDoc = await db.collection('departamentos').doc(deptId).get();
+        if (!deptDoc.exists) {
+          setReaderMsg(''); showError('❌ QR no válido o departamento eliminado'); return;
+        }
+        const dept = deptDoc.data();
+
+        // 3. Validar proximidad
+        let distanciaDept = null;
+        if (dept.lat != null && dept.lng != null) {
+          distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
+          if (distanciaDept > MAX_DISTANCIA_METROS) {
+            setReaderMsg(''); showError(`❌ No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
+          }
+        }
+
+        setReaderMsg('<span class="spinner"></span>💾 Guardando fichaje...');
+
+        // 4. Determinar tipo entrada/salida
+        const ultimoSnap = await db.collection('fichajes')
+          .where('userId', '==', user.id)
+          .orderBy('timestamp', 'desc')
+          .limit(1)
+          .get();
+
+        let tipo = 'entrada';
+        let duracionMin = null, horasNormales = null, horasExtra = null;
+
+        if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') {
+          tipo = 'salida';
+          const ultimoTs = ultimoSnap.docs[0].data().timestamp;
+          if (ultimoTs && ultimoTs.toDate) {
+            duracionMin = Math.round((ahora - ultimoTs.toDate()) / 60000);
+            const durHoras = duracionMin / 60;
+            horasNormales = Math.min(durHoras, HORAS_JORNADA_NORMAL);
+            horasExtra    = Math.max(0, durHoras - HORAS_JORNADA_NORMAL);
+          }
+        }
+
+        // 5. Guardar fichaje
+        await db.collection('fichajes').add({
+          userId:          user.id,
+          email:           user.email,
+          nombre:          user.nombre || '',
+          empresa:         user.empresa || '',
+          departamento:    dept.nombre,
+          departamentoId:  deptId,
+          tipo,
+          timestamp:       firebase.firestore.FieldValue.serverTimestamp(),
+          timestampCliente: ahora.toISOString(),
+          lat:             empLat,
+          lng:             empLng,
+          locError:        locError,
+          distanciaDept:   distanciaDept,
+          horasNormales:   horasNormales,
+          horasExtra:      horasExtra,
+          duracionMin:     duracionMin
+        });
+
+        // 6. Limpiar pendingDept y URL
+        sessionStorage.removeItem('pendingDept');
+        history.replaceState(null, '', 'dashboard.html');
+
+        // 7. Mostrar resultado
+        setReaderMsg('');
+        const statusBox = document.getElementById('statusBox');
+        const isNoCoords = dept.lat == null || dept.lng == null;
+        statusBox.className = isNoCoords ? 'status-box warn' : 'status-box ok';
+
+        let msgParts = [`✅ Fichaje de ${tipo} registrado · ${dept.nombre}`];
+        if (isNoCoords) msgParts = [`⚠️ Fichaje de ${tipo} registrado sin validación de proximidad · ${dept.nombre}`];
+
+        document.getElementById('statusMsg').textContent = msgParts[0];
+        document.getElementById('fichajeHora').textContent = horaStr;
+        document.getElementById('fichajeDate').textContent = fechaStr;
+
+        let details = [];
+        if (distanciaDept != null) details.push(`📍 a ${distanciaDept}m del departamento`);
+        if (tipo === 'salida' && duracionMin != null) {
+          const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
+          details.push(`🕐 Jornada: ${hh}h ${mm}m`);
+          if (horasNormales != null) details.push(`✔ Normales: ${horasNormales.toFixed(2)}h`);
+          if (horasExtra != null && horasExtra > 0) details.push(`⚡ Extra: ${horasExtra.toFixed(2)}h`);
+        }
+        document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
+
+      } catch(err) {
+        console.error(err);
+        setReaderMsg(''); showError('❌ Error al guardar el fichaje: ' + err.message);
+      }
+
+      document.getElementById('btnRescan').classList.add('show');
+    }
+
+    // ── Escáner manual (sin deptId) ───────────────────────────────────────────
     let scanner = null;
 
     function initScanner() {
       document.getElementById('statusBox').className = 'status-box';
-      document.getElementById('statusMsg').textContent = '';
-      document.getElementById('fichajeHora').textContent = '';
-      document.getElementById('fichajeDate').textContent = '';
+      document.getElementById('statusMsg').textContent    = '';
+      document.getElementById('fichajeHora').textContent  = '';
+      document.getElementById('fichajeDate').textContent  = '';
+      document.getElementById('fichajeDetail').textContent = '';
       document.getElementById('btnRescan').classList.remove('show');
 
       if (scanner) { try { scanner.clear(); } catch(_){} }
@@ -129,24 +303,48 @@
       scanner.render(onScanSuccess, () => {});
     }
 
-    async function onScanSuccess(deptId) {
+    async function onScanSuccess(scannedText) {
       try { await scanner.clear(); } catch(_) {}
 
-      // Hora exacta del fichaje (lado cliente, antes de ir a Firestore)
+      // Extraer deptId: puede ser URL completa o solo el ID (compatibilidad)
+      let deptId = scannedText;
+      try {
+        const u = new URL(scannedText);
+        const d = u.searchParams.get('dept');
+        if (d) deptId = d;
+      } catch(_) {}
+
+      await procesarFichajeConId(deptId);
+      document.getElementById('btnRescan').classList.add('show');
+    }
+
+    async function procesarFichajeConId(deptId) {
       const ahora = new Date();
-      const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const horaStr  = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const fechaStr = ahora.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+      // Geolocalización (best-effort en modo manual)
+      let empLat = null, empLng = null, locError = null;
       try {
-        // Verificar que el departamento existe
+        const pos = await getLocation();
+        empLat = pos.lat; empLng = pos.lng;
+      } catch(geoErr) {
+        locError = geoErr.message;
+      }
+
+      try {
         const deptDoc = await db.collection('departamentos').doc(deptId).get();
-        if (!deptDoc.exists) {
-          showError('❌ QR no válido o departamento eliminado');
-          return;
-        }
+        if (!deptDoc.exists) { showError('❌ QR no válido o departamento eliminado'); return; }
         const dept = deptDoc.data();
 
-        // Determinar tipo: entrada o salida
+        let distanciaDept = null;
+        if (empLat != null && dept.lat != null && dept.lng != null) {
+          distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
+          if (distanciaDept > MAX_DISTANCIA_METROS) {
+            showError(`❌ No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
+          }
+        }
+
         const ultimoSnap = await db.collection('fichajes')
           .where('userId', '==', user.id)
           .orderBy('timestamp', 'desc')
@@ -154,46 +352,80 @@
           .get();
 
         let tipo = 'entrada';
-        if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') tipo = 'salida';
+        let duracionMin = null, horasNormales = null, horasExtra = null;
 
-        // Guardar fichaje con timestamp del servidor (hora real y fiable)
+        if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') {
+          tipo = 'salida';
+          const ultimoTs = ultimoSnap.docs[0].data().timestamp;
+          if (ultimoTs && ultimoTs.toDate) {
+            duracionMin = Math.round((ahora - ultimoTs.toDate()) / 60000);
+            const durHoras = duracionMin / 60;
+            horasNormales = Math.min(durHoras, HORAS_JORNADA_NORMAL);
+            horasExtra    = Math.max(0, durHoras - HORAS_JORNADA_NORMAL);
+          }
+        }
+
         await db.collection('fichajes').add({
-          userId:       user.id,
-          email:        user.email,
-          nombre:       user.nombre || '',
-          empresa:      user.empresa || '',
-          departamento: dept.nombre,
-          departamentoId: deptId,
+          userId:          user.id,
+          email:           user.email,
+          nombre:          user.nombre || '',
+          empresa:         user.empresa || '',
+          departamento:    dept.nombre,
+          departamentoId:  deptId,
           tipo,
-          timestamp:    firebase.firestore.FieldValue.serverTimestamp()
+          timestamp:       firebase.firestore.FieldValue.serverTimestamp(),
+          timestampCliente: ahora.toISOString(),
+          lat:             empLat,
+          lng:             empLng,
+          locError:        locError,
+          distanciaDept:   distanciaDept,
+          horasNormales:   horasNormales,
+          horasExtra:      horasExtra,
+          duracionMin:     duracionMin
         });
 
-        // Mostrar resultado con la hora
         const statusBox = document.getElementById('statusBox');
         statusBox.className = 'status-box ok';
         document.getElementById('statusMsg').textContent = `✅ Fichaje de ${tipo} registrado · ${dept.nombre}`;
         document.getElementById('fichajeHora').textContent = horaStr;
         document.getElementById('fichajeDate').textContent = fechaStr;
 
+        let details = [];
+        if (distanciaDept != null) details.push(`📍 a ${distanciaDept}m del departamento`);
+        if (tipo === 'salida' && duracionMin != null) {
+          const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
+          details.push(`🕐 Jornada: ${hh}h ${mm}m`);
+          if (horasNormales != null) details.push(`✔ Normales: ${horasNormales.toFixed(2)}h`);
+          if (horasExtra != null && horasExtra > 0) details.push(`⚡ Extra: ${horasExtra.toFixed(2)}h`);
+        }
+        document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
+
       } catch(err) {
-        console.error(err);
-        showError('❌ Error al guardar el fichaje: ' + err.message);
+        console.error(err); showError('❌ Error al guardar el fichaje: ' + err.message);
       }
-
-      document.getElementById('btnRescan').classList.add('show');
     }
 
-    function showError(msg) {
-      const statusBox = document.getElementById('statusBox');
-      statusBox.className = 'status-box err';
-      document.getElementById('statusMsg').textContent = msg;
-      document.getElementById('fichajeHora').textContent = '';
-      document.getElementById('fichajeDate').textContent = '';
-      document.getElementById('btnRescan').classList.add('show');
-    }
+    // ── Inicio ────────────────────────────────────────────────────────────────
+    document.getElementById('btnRescan').addEventListener('click', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const deptId = urlParams.get('dept') || sessionStorage.getItem('pendingDept');
+      if (deptId) {
+        document.getElementById('btnRescan').classList.remove('show');
+        procesarFichajeAutomatico(deptId);
+      } else {
+        initScanner();
+      }
+    });
 
-    document.getElementById('btnRescan').addEventListener('click', initScanner);
-    initScanner();
+    (function init() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const deptId = urlParams.get('dept') || sessionStorage.getItem('pendingDept');
+      if (deptId) {
+        procesarFichajeAutomatico(deptId);
+      } else {
+        initScanner();
+      }
+    })();
   </script>
 </body>
 </html>
