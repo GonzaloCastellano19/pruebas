@@ -2,36 +2,133 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Login</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Login – QR Access</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; }
+    .login-container {
+      background: white;
+      padding: 40px 35px;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      text-align: center;
+      width: 320px;
+    }
+    .login-container h2 { margin-bottom: 24px; color: #1a1a2e; }
+    input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 10px 0;
+      padding: 12px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #4361ee; }
+    button[type="submit"] {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px;
+      background: #4361ee;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button[type="submit"]:hover { background: #3451d1; }
+    .error { color: #e63946; font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .logo { font-size: 28px; margin-bottom: 6px; }
+  </style>
 </head>
 <body>
   <div class="login-container">
-    <h2>Iniciar sesión</h2>
+    <div class="logo">🏪</div>
+    <h2>QR Access Logger</h2>
     <form id="loginForm">
-      <input type="text" id="username" placeholder="Usuario" required>
+      <input type="text" id="username" placeholder="Usuario" required autocomplete="off">
       <input type="password" id="password" placeholder="Contraseña" required>
-      <button type="submit">Entrar</button>
+      <button type="submit">Iniciar sesión</button>
     </form>
     <p id="error" class="error"></p>
   </div>
 
-  <script>
-    const loginForm = document.getElementById('loginForm');
-    const error = document.getElementById('error');
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-    loginForm.addEventListener('submit', (e) => {
+    const firebaseConfig = {
+      apiKey: "AIzaSyDKM2Tp1sosbdAeB6qK8P73cShQ0WP76S4",
+      authDomain: "basededatos-dd6b3.firebaseapp.com",
+      projectId: "basededatos-dd6b3",
+      storageBucket: "basededatos-dd6b3.firebasestorage.app",
+      messagingSenderId: "452860965959",
+      appId: "1:452860965959:web:42ecb1c31f17e55daa6d62"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const USERS = {
+      "admin":     { password: "1234",  rol: "admin" },
+      "empleado1": { password: "pass1", rol: "empleado" },
+      "empleado2": { password: "pass2", rol: "empleado" }
+    };
+
+    async function registrarLogin(username, rol, localizacion) {
+      const now = new Date();
+      await addDoc(collection(db, "logins"), {
+        usuario: username,
+        rol,
+        fecha: now.toLocaleDateString("es-ES"),
+        hora: now.toLocaleTimeString("es-ES"),
+        timestamp: now.toISOString(),
+        localizacion: localizacion || null
+      });
+    }
+
+    function obtenerUbicacion() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null)
+        );
+      });
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const username = document.getElementById('username').value;
+      const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
+      const errorEl  = document.getElementById('error');
+      const btn      = e.target.querySelector('button');
 
-      // Login básico sin backend (para prueba)
-      if(username === "admin" && password === "1234") {
-        localStorage.setItem("user", username);
-        window.location.href = "dashboard.html";
-      } else {
-        error.textContent = "Usuario o contraseña incorrectos";
+      const user = USERS[username];
+      if (!user || user.password !== password) {
+        errorEl.textContent = "Usuario o contraseña incorrectos";
+        return;
       }
+
+      btn.textContent = "Entrando...";
+      btn.disabled = true;
+
+      const loc = await obtenerUbicacion();
+      await registrarLogin(username, user.rol, loc);
+
+      const now = new Date();
+      localStorage.setItem("user", username);
+      localStorage.setItem("rol", user.rol);
+      localStorage.setItem("loginTime", now.toLocaleString("es-ES"));
+
+      // Redirigir manteniendo el parámetro de tienda si viene en la URL
+      const params = new URLSearchParams(window.location.search);
+      const tienda = params.get("tienda");
+      window.location.href = tienda
+        ? `dashboard.html?tienda=${encodeURIComponent(tienda)}`
+        : "dashboard.html";
     });
   </script>
 </body>
