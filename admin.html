@@ -513,12 +513,12 @@
       document.getElementById('qrGrid').appendChild(card);
 
       // Generar QR pequeño — el contenido es la URL completa al login con el deptId
-      const qrUrl = `${location.origin}/index.html?dept=${id}`;
+      const qrUrl = new URL('index.html?dept=' + id, location.href).href;
       new QRCode(document.getElementById('qrbox-' + id), {
         text: qrUrl,
-        width: 140, height: 140,
+        width: 200, height: 200,
         colorDark: '#000000', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
+        correctLevel: QRCode.CorrectLevel.L
       });
     }
 
@@ -591,15 +591,15 @@
     // Ver QR grande + descargar
     let currentQRData = null;
     function verQR(id, nombre, empresa) {
-      const qrUrl = `${location.origin}/index.html?dept=${id}`;
+      const qrUrl = new URL('index.html?dept=' + id, location.href).href;
       document.getElementById('qrModalTitle').textContent = nombre;
       document.getElementById('qrModalInfo').textContent  = qrUrl;
       document.getElementById('qrModalCanvas').innerHTML  = '';
       currentQRData = { id, nombre };
       new QRCode(document.getElementById('qrModalCanvas'), {
-        text: qrUrl, width: 280, height: 280,
+        text: qrUrl, width: 320, height: 320,
         colorDark: '#000000', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
+        correctLevel: QRCode.CorrectLevel.L
       });
       document.getElementById('ovQR').classList.add('show');
     }
