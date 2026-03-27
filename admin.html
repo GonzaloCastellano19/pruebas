@@ -157,6 +157,44 @@
     .toast.err { background: rgba(244,63,94,.15);  border: 1px solid rgba(244,63,94,.4);  color: var(--danger); }
 
     @media(max-width:768px){ .sidebar{display:none} .main{margin-left:0;padding:18px} }
+
+    /* Filtros fichajes */
+    .fichajes-filters {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      padding: 14px 22px; border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .fichajes-filters input,
+    .fichajes-filters select {
+      padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: 'DM Mono', monospace;
+      font-size: 12px; outline: none; min-width: 130px;
+    }
+    .fichajes-filters input:focus,
+    .fichajes-filters select:focus { border-color: var(--accent); }
+    .btn-limpiar {
+      padding: 8px 14px; background: transparent; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 8px; font-family: 'DM Mono', monospace;
+      font-size: 11px; cursor: pointer; transition: border-color .2s;
+    }
+    .btn-limpiar:hover { border-color: var(--text); color: var(--text); }
+    .btn-csv {
+      padding: 8px 16px; background: rgba(0,229,255,.1);
+      border: 1px solid rgba(0,229,255,.3); color: var(--accent);
+      border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 12px;
+      cursor: pointer; margin-left: auto;
+    }
+    .btn-csv:hover { background: rgba(0,229,255,.2); }
+
+    /* Cabeceras ordenables */
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--text); }
+    th.sort-asc::after  { content: ' ▲'; color: var(--accent); }
+    th.sort-desc::after { content: ' ▼'; color: var(--accent); }
+
+    /* Checkbox columna */
+    th.col-check, td.col-check { width: 38px; text-align: center; padding: 0 8px; }
+    input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -223,7 +261,22 @@
         <div class="page-header">
           <div><div class="page-title">Fichajes</div><div class="page-sub">Registro completo con hora exacta</div></div>
         </div>
-        <div class="tcard"><div id="tablaFichajes"><div class="loading"><span class="spinner"></span>Cargando...</div></div></div>
+        <div class="tcard">
+          <div class="fichajes-filters">
+            <input type="text"   id="fBusqueda" placeholder="Buscar nombre, email o dpto…">
+            <select id="fTipo">
+              <option value="">Todos</option>
+              <option value="entrada">entrada</option>
+              <option value="salida">salida</option>
+            </select>
+            <select id="fDept"><option value="">Todos los departamentos</option></select>
+            <input type="date" id="fDesde">
+            <input type="date" id="fHasta">
+            <button class="btn-limpiar" id="btnLimpiarFiltros">Limpiar filtros</button>
+            <button class="btn-csv"     id="btnDescargarCSV">⬇ Descargar CSV</button>
+          </div>
+          <div id="tablaFichajes"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
+        </div>
       </div>
 
     </main>
@@ -620,6 +673,189 @@
     //  FICHAJES (tiempo real con listener)
     // ─────────────────────────────────────────────────────────────────────────
     let fichajesUnsub = null;
+    let fichajesData  = [];
+    let sortCol = 'timestamp';
+    let sortDir = 'desc';
+    let filtros = { busqueda: '', tipo: '', dept: '', desde: '', hasta: '' };
+
+    function applyFilters(items) {
+      return items.filter(item => {
+        const f = item.data;
+        const texto = (f.nombre || '') + ' ' + (f.email || '') + ' ' + (f.departamento || '');
+        if (filtros.busqueda && !texto.toLowerCase().includes(filtros.busqueda.toLowerCase())) return false;
+        if (filtros.tipo && f.tipo !== filtros.tipo) return false;
+        if (filtros.dept && f.departamento !== filtros.dept) return false;
+        if (filtros.desde || filtros.hasta) {
+          const ts = f.timestamp && f.timestamp.toDate ? f.timestamp.toDate() : null;
+          if (ts) {
+            if (filtros.desde && ts < new Date(filtros.desde + 'T00:00:00')) return false;
+            if (filtros.hasta && ts > new Date(filtros.hasta + 'T23:59:59')) return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    function fmtJornada(f) {
+      return f.duracionMin != null ? `${Math.floor(f.duracionMin / 60)}h ${f.duracionMin % 60}m` : '—';
+    }
+
+    function renderFichajes() {
+      const tbody = document.getElementById('tablaFichajes');
+
+      // 1. Filtrar
+      let items = applyFilters(fichajesData);
+
+      // 2. Ordenar
+      items.sort((a, b) => {
+        let va, vb;
+        const fa = a.data, fb = b.data;
+        switch (sortCol) {
+          case 'nombre':      va = (fa.nombre||'').toLowerCase();     vb = (fb.nombre||'').toLowerCase();     break;
+          case 'departamento':va = (fa.departamento||'').toLowerCase();vb = (fb.departamento||'').toLowerCase();break;
+          case 'tipo':        va = fa.tipo||'';                        vb = fb.tipo||'';                        break;
+          case 'timestamp':
+            va = fa.timestamp && fa.timestamp.toDate ? fa.timestamp.toDate().getTime() : 0;
+            vb = fb.timestamp && fb.timestamp.toDate ? fb.timestamp.toDate().getTime() : 0;
+            break;
+          case 'jornada':     va = fa.duracionMin  != null ? fa.duracionMin  : -1; vb = fb.duracionMin  != null ? fb.duracionMin  : -1; break;
+          case 'hNorm':       va = fa.horasNormales != null ? fa.horasNormales : -1; vb = fb.horasNormales != null ? fb.horasNormales : -1; break;
+          case 'hExtra':      va = fa.horasExtra   != null ? fa.horasExtra   : -1; vb = fb.horasExtra   != null ? fb.horasExtra   : -1; break;
+          default:            va = 0; vb = 0;
+        }
+        if (va < vb) return sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir === 'asc' ?  1 : -1;
+        return 0;
+      });
+
+      // 3. Actualizar select de departamentos
+      const deptSel = document.getElementById('fDept');
+      const prevDept = deptSel.value;
+      const depts = [...new Set(fichajesData.map(i => i.data.departamento).filter(Boolean))].sort();
+      deptSel.innerHTML = '<option value="">Todos los departamentos</option>' +
+        depts.map(d => `<option value="${d}"${d===prevDept?' selected':''}>${d}</option>`).join('');
+
+      // 4. Reconstruir tabla
+      if (!items.length) {
+        tbody.innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes que coincidan con los filtros</div>';
+        updateCSVBtn(0);
+        return;
+      }
+
+      const cols = [
+        { key:'nombre',       label:'Nombre' },
+        { key:'departamento', label:'Departamento' },
+        { key:'tipo',         label:'Tipo' },
+        { key:'timestamp',    label:'Hora exacta del fichaje' },
+        { key:'jornada',      label:'Jornada' },
+        { key:'hNorm',        label:'H. Normal' },
+        { key:'hExtra',       label:'H. Extra' },
+      ];
+
+      const thSort = cols.map(c => {
+        let cls = 'sortable';
+        if (sortCol === c.key) cls += sortDir === 'asc' ? ' sort-asc' : ' sort-desc';
+        return `<th class="${cls}" data-col="${c.key}">${c.label}</th>`;
+      }).join('');
+
+      const rows = items.map((item, idx) => {
+        const f = item.data;
+        const jornada = fmtJornada(f);
+        const hNorm   = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '—';
+        const hExtra  = f.horasExtra   != null ? f.horasExtra.toFixed(2)    + 'h' : '—';
+        let ubicacion = '—';
+        if (f.lat != null && f.lng != null) {
+          const dist = f.distanciaDept != null ? ` (${Math.round(f.distanciaDept)}m)` : '';
+          ubicacion = `<a href="https://maps.google.com/?q=${f.lat},${f.lng}" target="_blank" style="color:var(--accent)">📍 Maps${dist}</a>`;
+        } else if (f.locError) {
+          ubicacion = `<span style="color:var(--muted);font-size:11px">${f.locError}</span>`;
+        }
+        return `<tr>
+          <td class="col-check"><input type="checkbox" class="chk-fila" value="${item.id}"></td>
+          <td>${f.nombre||'—'}</td>
+          <td style="color:var(--muted)">${f.email||'—'}</td>
+          <td style="color:var(--muted)">${f.departamento||'—'}</td>
+          <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
+          <td style="color:var(--accent);letter-spacing:.5px">${fmt(f.timestamp)}</td>
+          <td style="color:var(--muted)">${jornada}</td>
+          <td style="color:var(--success)">${hNorm}</td>
+          <td style="color:var(--warn)">${hExtra}</td>
+          <td>${ubicacion}</td>
+        </tr>`;
+      }).join('');
+
+      tbody.innerHTML = `<table><thead><tr>
+        <th class="col-check"><input type="checkbox" id="chkTodos"></th>
+        ${thSort}
+        <th>Email</th><th>Ubicación</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+
+      // Listeners cabeceras ordenables
+      tbody.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const col = th.dataset.col;
+          if (sortCol === col) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
+          else { sortCol = col; sortDir = 'asc'; }
+          renderFichajes();
+        });
+      });
+
+      // Listener chkTodos
+      const chkTodos = tbody.querySelector('#chkTodos');
+      chkTodos.addEventListener('change', () => {
+        tbody.querySelectorAll('.chk-fila').forEach(c => { c.checked = chkTodos.checked; });
+        updateCSVBtn();
+      });
+
+      // Listener checkboxes individuales → actualizar contador
+      tbody.querySelectorAll('.chk-fila').forEach(c => {
+        c.addEventListener('change', () => {
+          const all   = tbody.querySelectorAll('.chk-fila');
+          const checked = tbody.querySelectorAll('.chk-fila:checked');
+          chkTodos.indeterminate = checked.length > 0 && checked.length < all.length;
+          chkTodos.checked       = checked.length === all.length;
+          updateCSVBtn();
+        });
+      });
+
+      updateCSVBtn();
+    }
+
+    function updateCSVBtn(forceZero) {
+      const btn = document.getElementById('btnDescargarCSV');
+      if (!btn) return;
+      if (forceZero === 0) { btn.textContent = '⬇ Descargar CSV'; return; }
+      const checked = document.querySelectorAll('#tablaFichajes .chk-fila:checked').length;
+      btn.textContent = checked > 0 ? `⬇ Descargar (${checked})` : '⬇ Descargar CSV';
+    }
+
+    function descargarCSV() {
+      const checkedIds = new Set(
+        [...document.querySelectorAll('#tablaFichajes .chk-fila:checked')].map(c => c.value)
+      );
+      const source = checkedIds.size > 0
+        ? fichajesData.filter(i => checkedIds.has(i.id))
+        : applyFilters(fichajesData);
+
+      const esc = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+      const header = ['Nombre','Email','Departamento','Tipo','Hora','Jornada','H.Normal','H.Extra','Ubicación'];
+      const csvRows = source.map(item => {
+        const f = item.data;
+        const jornada = fmtJornada(f);
+        const hNorm   = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '';
+        const hExtra  = f.horasExtra   != null ? f.horasExtra.toFixed(2)    + 'h' : '';
+        const hora    = f.timestamp && f.timestamp.toDate ? f.timestamp.toDate().toLocaleString('es-ES') : '';
+        const ubic    = f.lat != null && f.lng != null ? `${f.lat},${f.lng}` : (f.locError || '');
+        return [f.nombre||'', f.email||'', f.departamento||'', f.tipo||'', hora, jornada, hNorm, hExtra, ubic].map(esc).join(',');
+      });
+
+      const csv  = [header.map(esc).join(','), ...csvRows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href  = URL.createObjectURL(blob);
+      link.download = `fichajes_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
 
     function loadFichajes() {
       document.getElementById('tablaFichajes').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
@@ -629,38 +865,27 @@
         .orderBy('timestamp', 'desc')
         .limit(300)
         .onSnapshot(snap => {
-          if (snap.empty) {
-            document.getElementById('tablaFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
-            return;
-          }
-          document.getElementById('tablaFichajes').innerHTML = `<table><thead><tr>
-            <th>Nombre</th><th>Email</th><th>Departamento</th><th>Tipo</th><th>Hora exacta del fichaje</th><th>Jornada</th><th>H. Normal</th><th>H. Extra</th><th>Ubicación</th>
-          </tr></thead><tbody>${snap.docs.map(d => {
-            const f = d.data();
-            const jornada = f.duracionMin != null ? `${Math.floor(f.duracionMin/60)}h ${f.duracionMin%60}m` : '—';
-            const hNorm   = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '—';
-            const hExtra  = f.horasExtra   != null ? f.horasExtra.toFixed(2)    + 'h' : '—';
-            let ubicacion = '—';
-            if (f.lat != null && f.lng != null) {
-              const dist = f.distanciaDept != null ? ` (${Math.round(f.distanciaDept)}m)` : '';
-              ubicacion = `<a href="https://maps.google.com/?q=${f.lat},${f.lng}" target="_blank" style="color:var(--accent)">📍 Maps${dist}</a>`;
-            } else if (f.locError) {
-              ubicacion = `<span style="color:var(--muted);font-size:11px">${f.locError}</span>`;
-            }
-            return `<tr>
-              <td>${f.nombre||'—'}</td>
-              <td style="color:var(--muted)">${f.email||'—'}</td>
-              <td style="color:var(--muted)">${f.departamento||'—'}</td>
-              <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
-              <td style="color:var(--accent);letter-spacing:.5px">${fmt(f.timestamp)}</td>
-              <td style="color:var(--muted)">${jornada}</td>
-              <td style="color:var(--success)">${hNorm}</td>
-              <td style="color:var(--warn)">${hExtra}</td>
-              <td>${ubicacion}</td>
-            </tr>`;
-          }).join('')}</tbody></table>`;
+          fichajesData = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+          renderFichajes();
         }, err => console.error(err));
     }
+
+    // Filtros
+    document.getElementById('fBusqueda').addEventListener('input',  e => { filtros.busqueda = e.target.value; renderFichajes(); });
+    document.getElementById('fTipo').addEventListener('change',     e => { filtros.tipo     = e.target.value; renderFichajes(); });
+    document.getElementById('fDept').addEventListener('change',     e => { filtros.dept     = e.target.value; renderFichajes(); });
+    document.getElementById('fDesde').addEventListener('change',    e => { filtros.desde    = e.target.value; renderFichajes(); });
+    document.getElementById('fHasta').addEventListener('change',    e => { filtros.hasta    = e.target.value; renderFichajes(); });
+    document.getElementById('btnLimpiarFiltros').addEventListener('click', () => {
+      filtros = { busqueda: '', tipo: '', dept: '', desde: '', hasta: '' };
+      document.getElementById('fBusqueda').value = '';
+      document.getElementById('fTipo').value     = '';
+      document.getElementById('fDept').value     = '';
+      document.getElementById('fDesde').value    = '';
+      document.getElementById('fHasta').value    = '';
+      renderFichajes();
+    });
+    document.getElementById('btnDescargarCSV').addEventListener('click', descargarCSV);
 
     // ── Carga inicial ─────────────────────────────────────────────────────────
     loadResumen();
