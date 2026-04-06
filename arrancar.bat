@@ -8,23 +8,41 @@ echo   QRAccess - Sistema de Fichaje
 echo  ================================
 echo.
 
+:: Comprobar Python (intenta py, luego python, luego python3)
+py --version > nul 2>&1
+if not errorlevel 1 (
+    set PYTHON=py
+    goto :found_python
+)
 python --version > nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Python no esta instalado o no esta en el PATH.
-    echo  Descargalo desde: https://www.python.org/downloads/
-    echo  Asegurate de marcar "Add Python to PATH" al instalar.
-    echo.
-    pause
-    exit /b 1
+if not errorlevel 1 (
+    set PYTHON=python
+    goto :found_python
+)
+python3 --version > nul 2>&1
+if not errorlevel 1 (
+    set PYTHON=python3
+    goto :found_python
 )
 
+echo [ERROR] Python no esta instalado o no esta en el PATH.
+echo  Descargalo desde: https://www.python.org/downloads/
+echo  Asegurate de marcar "Add Python to PATH" al instalar.
+echo.
+pause
+exit /b 1
+
+:found_python
+echo Python encontrado: %PYTHON%
+echo.
+
 echo [1/3] Instalando dependencias...
-pip install flask qrcode pillow --quiet
+%PYTHON% -m pip install flask qrcode pillow --quiet
 echo       OK
 
 echo [2/3] Preparando base de datos...
 if not exist "fichaje.db" (
-    python migrar_db.py
+    %PYTHON% migrar_db.py
 ) else (
     echo       La base de datos ya existe, saltando migracion.
 )
@@ -41,6 +59,6 @@ echo.
 timeout /t 2 /nobreak > nul
 start http://localhost:5000
 
-python fichaje_qr/app.py
+%PYTHON% fichaje_qr/app.py
 
 pause
