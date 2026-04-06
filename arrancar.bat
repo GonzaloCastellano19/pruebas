@@ -1,64 +1,45 @@
 @echo off
 chcp 65001 > nul
 title QRAccess - Servidor
-
 echo.
 echo  ================================
 echo   QRAccess - Sistema de Fichaje
 echo  ================================
 echo.
-
-:: Comprobar Python (intenta py, luego python, luego python3)
-py --version > nul 2>&1
-if not errorlevel 1 (
-    set PYTHON=py
-    goto :found_python
+:: Comprobar Node.js
+node --version > nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js no esta instalado o no esta en el PATH.
+    echo  Descargalo desde: https://nodejs.org
+    echo  Instala la version LTS.
+    echo.
+    pause
+    exit /b 1
 )
-python --version > nul 2>&1
-if not errorlevel 1 (
-    set PYTHON=python
-    goto :found_python
-)
-python3 --version > nul 2>&1
-if not errorlevel 1 (
-    set PYTHON=python3
-    goto :found_python
-)
-
-echo [ERROR] Python no esta instalado o no esta en el PATH.
-echo  Descargalo desde: https://www.python.org/downloads/
-echo  Asegurate de marcar "Add Python to PATH" al instalar.
-echo.
-pause
-exit /b 1
-
-:found_python
-echo Python encontrado: %PYTHON%
-echo.
-
+:: Ir a la carpeta del backend
+cd /d "%~dp0backend"
 echo [1/3] Instalando dependencias...
-%PYTHON% -m pip install flask qrcode pillow --quiet
+call npm install --silent
 echo       OK
-
-echo [2/3] Preparando base de datos...
-if not exist "fichaje.db" (
-    %PYTHON% migrar_db.py
-) else (
-    echo       La base de datos ya existe, saltando migracion.
-)
-
+echo [2/3] Preparando archivos estaticos...
+cd /d "%~dp0"
+if not exist "backend\public" mkdir "backend\public"
+copy /y "index.html" "backend\public\index.html" > nul
+copy /y "admin.html" "backend\public\admin.html" > nul
+copy /y "dashboard.html" "backend\public\dashboard.html" > nul
+if exist "index.css" copy /y "index.css" "backend\public\index.css" > nul
+echo       OK
 echo [3/3] Arrancando servidor...
 echo.
-echo  Abre tu navegador en: http://localhost:5000
-echo  Panel admin en:       http://localhost:5000/admin
-echo  Credenciales admin:   admin@qraccess.com / 1234
+echo  Abre tu navegador en: http://localhost:3000
+echo  Credenciales:         admin / admin123
 echo.
 echo  Pulsa Ctrl+C para detener el servidor.
 echo.
-
 timeout /t 2 /nobreak > nul
-start http://localhost:5000
+start http://localhost:3000
 
-%PYTHON% fichaje_qr/app.py
+cd /d "%~dp0backend"
+node server.js
 
 pause
