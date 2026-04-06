@@ -16,18 +16,17 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-:: Ir a la carpeta del backend
-cd /d "%~dp0backend"
+:: Ir a la carpeta qraccess donde esta server.js
+cd /d "%~dp0qraccess"
 echo [1/3] Instalando dependencias...
 call npm install --silent
 echo       OK
 echo [2/3] Preparando archivos estaticos...
-cd /d "%~dp0"
-if not exist "backend\public" mkdir "backend\public"
-copy /y "index.html" "backend\public\index.html" > nul
-copy /y "admin.html" "backend\public\admin.html" > nul
-copy /y "dashboard.html" "backend\public\dashboard.html" > nul
-if exist "index.css" copy /y "index.css" "backend\public\index.css" > nul
+if not exist "public" mkdir "public"
+copy /y "..\index.html" "public\index.html" > nul
+copy /y "..\admin.html" "public\admin.html" > nul
+copy /y "..\dashboard.html" "public\dashboard.html" > nul
+if exist "..\index.css" copy /y "..\index.css" "public\index.css" > nul
 echo       OK
 echo [3/3] Arrancando servidor...
 echo.
@@ -38,8 +37,5 @@ echo  Pulsa Ctrl+C para detener el servidor.
 echo.
 timeout /t 2 /nobreak > nul
 start http://localhost:3000
-
-cd /d "%~dp0backend"
 node server.js
-
 pause
