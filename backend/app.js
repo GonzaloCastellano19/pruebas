@@ -1,7 +1,7 @@
 """
 Sistema de Fichaje con QR
+Nueva estructura: Admins → Empresas → Departamentos → Usuarios → Fichajes
 Arranca con: python app.py
-Abre en el navegador: http://localhost:5000
 """
 
 from flask import Flask, request, jsonify, render_template, send_file, session, redirect, url_for
@@ -10,14 +10,15 @@ import os
 import uuid
 from datetime import datetime
 import qrcode
-import io
 from functools import wraps
+import hashlib
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cambiar_en_produccion_" + uuid.uuid4().hex)
 
 DB_PATH   = "fichaje.db"
 QR_FOLDER = "static/qr_codes"
+
 
 # ─────────────────────────────────────────────
 # BASE DE DATOS
@@ -33,46 +34,74 @@ def get_db():
 def init_db():
     with get_db() as conn:
         conn.executescript("""
-            CREATE TABLE IF NOT EXISTS employees (
+            -- Admins del sistema
+            CREATE TABLE IF NOT EXISTS admins (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                name       TEXT    NOT NULL,
-                qr_token   TEXT    NOT NULL UNIQUE,
+                nombre     TEXT    NOT NULL,
+                correo     TEXT    NOT NULL UNIQUE,
+                password   TEXT    NOT NULL,
+                telefono   TEXT,
+                created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
+            -- Empresas que gestiona cada admin
+            CREATE TABLE IF NOT EXISTS empresas (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id   INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+                nombre     TEXT    NOT NULL,
+                nif        TEXT,
+                direccion  TEXT,
+                sector     TEXT,
                 created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
             );
 
-            CREATE TABLE IF NOT EXISTS checkins (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                employee_id INTEGER NOT NULL REFERENCES employees(id),
-                direction   TEXT    NOT NULL CHECK(direction IN ('IN','OUT')),
-                ts          TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
-                lat         REAL,
-                lng         REAL,
-                store       TEXT
+            -- Departamentos dentro de cada empresa
+            CREATE TABLE IF NOT EXISTS departamentos (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                nombre     TEXT    NOT NULL,
+                descripcion TEXT,
+                created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
             );
 
-            CREATE TABLE IF NOT EXISTS login_log (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                username  TEXT NOT NULL,
-                rol       TEXT NOT NULL,
-                ts        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-                lat       REAL,
-                lng       REAL
+            -- Usuarios (empleados) de cada departamento
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                empresa_id      INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                departamento_id INTEGER NOT NULL REFERENCES departamentos(id) ON DELETE CASCADE,
+                dni             TEXT    NOT NULL UNIQUE,
+                nombre          TEXT    NOT NULL,
+                apellidos       TEXT,
+                correo          TEXT,
+                telefono        TEXT,
+                rol             TEXT    NOT NULL DEFAULT 'empleado',
+                qr_token        TEXT    NOT NULL UNIQUE,
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
             );
 
-            CREATE TABLE IF NOT EXISTS users (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL,
-                rol      TEXT NOT NULL DEFAULT 'empleado'
+            -- Fichajes vinculados a usuario, departamento y empresa
+            CREATE TABLE IF NOT EXISTS fichajes (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                departamento_id INTEGER NOT NULL REFERENCES departamentos(id) ON DELETE CASCADE,
+                empresa_id      INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                entrada         TEXT    NOT NULL,
+                salida          TEXT,
+                tipo            TEXT    NOT NULL DEFAULT 'presencial' CHECK(tipo IN ('presencial','remoto')),
+                ubicacion       TEXT,
+                estado          TEXT    NOT NULL DEFAULT 'abierto' CHECK(estado IN ('abierto','cerrado')),
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
             );
         """)
 
-        # Insertar admin por defecto si no existe
-        existing = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
+        # Admin por defecto si no existe
+        existing = conn.execute("SELECT id FROM admins WHERE correo='admin@admin.com'").fetchone()
         if not existing:
+            pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
             conn.execute(
-                "INSERT INTO users (username, password, rol) VALUES (?,?,?)",
-                ("admin", "admin123", "admin")
+                "INSERT INTO admins (nombre, correo, password, telefono) VALUES (?,?,?,?)",
+                ("Administrador", "admin@admin.com", pwd_hash, "")
             )
 
     os.makedirs(QR_FOLDER, exist_ok=True)
@@ -82,12 +111,8 @@ def init_db():
 # HELPERS
 # ─────────────────────────────────────────────
 
-def last_direction(conn, employee_id):
-    row = conn.execute(
-        "SELECT direction FROM checkins WHERE employee_id=? ORDER BY ts DESC LIMIT 1",
-        (employee_id,)
-    ).fetchone()
-    return row["direction"] if row else None
+def hash_password(pwd):
+    return hashlib.sha256(pwd.encode()).hexdigest()
 
 
 def generate_qr_image(token: str) -> str:
@@ -101,66 +126,79 @@ def generate_qr_image(token: str) -> str:
 def require_login(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "username" not in session:
+        if "admin_id" not in session:
             return redirect(url_for("login_page"))
         return f(*args, **kwargs)
     return decorated
 
 
-def require_admin(f):
+def require_api_login(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if session.get("rol") != "admin":
-            return jsonify({"error": "Acceso restringido a administradores"}), 403
+        if "admin_id" not in session:
+            return jsonify({"error": "No autenticado"}), 401
         return f(*args, **kwargs)
     return decorated
 
 
 # ─────────────────────────────────────────────
-# RUTAS – AUTENTICACIÓN
+# RUTAS – FRONTEND
 # ─────────────────────────────────────────────
 
-@app.route("/login", methods=["GET"])
+@app.route("/")
+def index():
+    if "admin_id" in session:
+        return redirect(url_for("admin_panel"))
+    return redirect(url_for("login_page"))
+
+
+@app.route("/login")
 def login_page():
-    if "username" in session:
-        return redirect(url_for("kiosk"))
+    if "admin_id" in session:
+        return redirect(url_for("admin_panel"))
     return render_template("index.html")
 
+
+@app.route("/admin")
+@require_login
+def admin_panel():
+    return render_template("admin.html")
+
+
+@app.route("/kiosk")
+def kiosk():
+    return render_template("kiosk.html")
+
+
+# ─────────────────────────────────────────────
+# RUTAS – AUTH
+# ─────────────────────────────────────────────
 
 @app.route("/api/auth/login", methods=["POST"])
 def api_login():
     data     = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
+    correo   = (data.get("correo") or data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
-    lat      = data.get("lat")
-    lng      = data.get("lng")
 
-    if not username or not password:
-        return jsonify({"error": "Usuario y contraseña requeridos"}), 400
+    if not correo or not password:
+        return jsonify({"error": "Correo y contraseña requeridos"}), 400
 
     with get_db() as conn:
-        user = conn.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
+        admin = conn.execute(
+            "SELECT * FROM admins WHERE correo=? AND password=?",
+            (correo, hash_password(password))
         ).fetchone()
 
-        if not user:
+        if not admin:
             return jsonify({"error": "Credenciales incorrectas"}), 401
 
-        # Registrar log de login
-        conn.execute(
-            "INSERT INTO login_log (username, rol, lat, lng) VALUES (?,?,?,?)",
-            (username, user["rol"], lat, lng)
-        )
-
-    session["username"]  = username
-    session["rol"]       = user["rol"]
-    session["login_time"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    session["admin_id"]   = admin["id"]
+    session["admin_nombre"] = admin["nombre"]
+    session["admin_correo"] = admin["correo"]
 
     return jsonify({
-        "username":   username,
-        "rol":        user["rol"],
-        "login_time": session["login_time"]
+        "ok": True,
+        "admin": {"id": admin["id"], "nombre": admin["nombre"], "correo": admin["correo"]}
     })
 
 
@@ -172,79 +210,346 @@ def api_logout():
 
 @app.route("/api/auth/me", methods=["GET"])
 def api_me():
-    if "username" not in session:
+    if "admin_id" not in session:
         return jsonify({"error": "No autenticado"}), 401
     return jsonify({
-        "username":   session["username"],
-        "rol":        session["rol"],
-        "login_time": session.get("login_time", "")
+        "id":     session["admin_id"],
+        "nombre": session["admin_nombre"],
+        "correo": session["admin_correo"]
     })
 
 
 # ─────────────────────────────────────────────
-# RUTAS – EMPLEADOS  (solo admin)
+# RUTAS – ADMINS
 # ─────────────────────────────────────────────
 
-@app.route("/api/employees", methods=["POST"])
-@require_admin
-def create_employee():
-    data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "").strip()
+@app.route("/api/admins", methods=["POST"])
+def create_admin():
+    """Crea un nuevo admin (registro público o desde superadmin)."""
+    data     = request.get_json(silent=True) or {}
+    nombre   = (data.get("nombre") or "").strip()
+    correo   = (data.get("correo") or "").strip()
+    password = (data.get("password") or "").strip()
+    telefono = (data.get("telefono") or "").strip()
 
-    if not name:
-        return jsonify({"error": "El campo 'name' es obligatorio"}), 400
-    if len(name) > 100:
-        return jsonify({"error": "Nombre demasiado largo (máx. 100 caracteres)"}), 400
+    if not nombre or not correo or not password:
+        return jsonify({"error": "nombre, correo y password son obligatorios"}), 400
 
-    token = uuid.uuid4().hex
     try:
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO employees (name, qr_token) VALUES (?, ?)",
-                (name, token)
+                "INSERT INTO admins (nombre, correo, password, telefono) VALUES (?,?,?,?)",
+                (nombre, correo, hash_password(password), telefono)
             )
     except sqlite3.IntegrityError:
-        return jsonify({"error": "Ya existe un empleado con ese token"}), 409
+        return jsonify({"error": "Ya existe un admin con ese correo"}), 409
 
-    generate_qr_image(token)
-    return jsonify({"message": "Empleado creado", "employee": {"name": name, "qr_token": token}}), 201
+    return jsonify({"message": f"Admin '{nombre}' creado correctamente"}), 201
 
 
-@app.route("/api/employees", methods=["GET"])
-@require_admin
-def list_employees():
+@app.route("/api/admins/me", methods=["PUT"])
+@require_api_login
+def update_admin():
+    """Actualiza los datos del admin en sesión."""
+    data     = request.get_json(silent=True) or {}
+    nombre   = (data.get("nombre") or "").strip()
+    telefono = (data.get("telefono") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    fields, params = [], []
+    if nombre:
+        fields.append("nombre=?"); params.append(nombre)
+    if telefono:
+        fields.append("telefono=?"); params.append(telefono)
+    if password:
+        fields.append("password=?"); params.append(hash_password(password))
+    fields.append("updated_at=?"); params.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    params.append(session["admin_id"])
+
+    with get_db() as conn:
+        conn.execute(f"UPDATE admins SET {', '.join(fields)} WHERE id=?", params)
+        if nombre:
+            session["admin_nombre"] = nombre
+
+    return jsonify({"ok": True})
+
+
+# ─────────────────────────────────────────────
+# RUTAS – EMPRESAS
+# ─────────────────────────────────────────────
+
+@app.route("/api/empresas", methods=["GET"])
+@require_api_login
+def list_empresas():
+    """Lista las empresas del admin en sesión."""
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, name, qr_token, created_at FROM employees ORDER BY name"
+            "SELECT * FROM empresas WHERE admin_id=? ORDER BY nombre",
+            (session["admin_id"],)
         ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
-@app.route("/api/employees/<int:employee_id>", methods=["DELETE"])
-@require_admin
-def delete_employee(employee_id):
+@app.route("/api/empresas", methods=["POST"])
+@require_api_login
+def create_empresa():
+    data      = request.get_json(silent=True) or {}
+    nombre    = (data.get("nombre") or "").strip()
+    nif       = (data.get("nif") or "").strip()
+    direccion = (data.get("direccion") or "").strip()
+    sector    = (data.get("sector") or "").strip()
+
+    if not nombre:
+        return jsonify({"error": "El nombre de la empresa es obligatorio"}), 400
+
     with get_db() as conn:
-        emp = conn.execute("SELECT qr_token FROM employees WHERE id=?", (employee_id,)).fetchone()
+        cur = conn.execute(
+            "INSERT INTO empresas (admin_id, nombre, nif, direccion, sector) VALUES (?,?,?,?,?)",
+            (session["admin_id"], nombre, nif, direccion, sector)
+        )
+        empresa_id = cur.lastrowid
+
+    return jsonify({"id": empresa_id, "nombre": nombre, "message": "Empresa creada"}), 201
+
+
+@app.route("/api/empresas/<int:empresa_id>", methods=["PUT"])
+@require_api_login
+def update_empresa(empresa_id):
+    data = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        emp = conn.execute(
+            "SELECT id FROM empresas WHERE id=? AND admin_id=?",
+            (empresa_id, session["admin_id"])
+        ).fetchone()
         if not emp:
-            return jsonify({"error": "Empleado no encontrado"}), 404
-        conn.execute("DELETE FROM checkins WHERE employee_id=?", (employee_id,))
-        conn.execute("DELETE FROM employees WHERE id=?", (employee_id,))
-        qr_path = os.path.join(QR_FOLDER, f"{emp['qr_token']}.png")
+            return jsonify({"error": "Empresa no encontrada"}), 404
+        conn.execute(
+            "UPDATE empresas SET nombre=?, nif=?, direccion=?, sector=? WHERE id=?",
+            (data.get("nombre",""), data.get("nif",""), data.get("direccion",""), data.get("sector",""), empresa_id)
+        )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/empresas/<int:empresa_id>", methods=["DELETE"])
+@require_api_login
+def delete_empresa(empresa_id):
+    with get_db() as conn:
+        emp = conn.execute(
+            "SELECT id FROM empresas WHERE id=? AND admin_id=?",
+            (empresa_id, session["admin_id"])
+        ).fetchone()
+        if not emp:
+            return jsonify({"error": "Empresa no encontrada"}), 404
+        conn.execute("DELETE FROM empresas WHERE id=?", (empresa_id,))
+    return jsonify({"message": "Empresa eliminada"})
+
+
+# ─────────────────────────────────────────────
+# RUTAS – DEPARTAMENTOS
+# ─────────────────────────────────────────────
+
+@app.route("/api/empresas/<int:empresa_id>/departamentos", methods=["GET"])
+@require_api_login
+def list_departamentos(empresa_id):
+    with get_db() as conn:
+        # Verificar que la empresa pertenece al admin
+        emp = conn.execute(
+            "SELECT id FROM empresas WHERE id=? AND admin_id=?",
+            (empresa_id, session["admin_id"])
+        ).fetchone()
+        if not emp:
+            return jsonify({"error": "Empresa no encontrada"}), 404
+
+        rows = conn.execute(
+            "SELECT * FROM departamentos WHERE empresa_id=? ORDER BY nombre",
+            (empresa_id,)
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/empresas/<int:empresa_id>/departamentos", methods=["POST"])
+@require_api_login
+def create_departamento(empresa_id):
+    data        = request.get_json(silent=True) or {}
+    nombre      = (data.get("nombre") or "").strip()
+    descripcion = (data.get("descripcion") or "").strip()
+
+    if not nombre:
+        return jsonify({"error": "El nombre del departamento es obligatorio"}), 400
+
+    with get_db() as conn:
+        emp = conn.execute(
+            "SELECT id FROM empresas WHERE id=? AND admin_id=?",
+            (empresa_id, session["admin_id"])
+        ).fetchone()
+        if not emp:
+            return jsonify({"error": "Empresa no encontrada"}), 404
+
+        cur = conn.execute(
+            "INSERT INTO departamentos (empresa_id, nombre, descripcion) VALUES (?,?,?)",
+            (empresa_id, nombre, descripcion)
+        )
+        depto_id = cur.lastrowid
+
+    return jsonify({"id": depto_id, "nombre": nombre, "message": "Departamento creado"}), 201
+
+
+@app.route("/api/departamentos/<int:depto_id>", methods=["DELETE"])
+@require_api_login
+def delete_departamento(depto_id):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT d.id FROM departamentos d
+            JOIN empresas e ON e.id = d.empresa_id
+            WHERE d.id=? AND e.admin_id=?
+        """, (depto_id, session["admin_id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Departamento no encontrado"}), 404
+        conn.execute("DELETE FROM departamentos WHERE id=?", (depto_id,))
+    return jsonify({"message": "Departamento eliminado"})
+
+
+# ─────────────────────────────────────────────
+# RUTAS – USUARIOS
+# ─────────────────────────────────────────────
+
+@app.route("/api/departamentos/<int:depto_id>/usuarios", methods=["GET"])
+@require_api_login
+def list_usuarios(depto_id):
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT u.id, u.dni, u.nombre, u.apellidos, u.correo,
+                   u.telefono, u.rol, u.qr_token, u.created_at,
+                   d.nombre AS departamento, e.nombre AS empresa
+            FROM usuarios u
+            JOIN departamentos d ON d.id = u.departamento_id
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.departamento_id=? AND e.admin_id=?
+            ORDER BY u.nombre
+        """, (depto_id, session["admin_id"])).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/empresas/<int:empresa_id>/usuarios", methods=["GET"])
+@require_api_login
+def list_usuarios_empresa(empresa_id):
+    """Todos los usuarios de una empresa (todos los departamentos)."""
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT u.id, u.dni, u.nombre, u.apellidos, u.correo,
+                   u.telefono, u.rol, u.qr_token, u.created_at,
+                   d.nombre AS departamento, d.id AS departamento_id
+            FROM usuarios u
+            JOIN departamentos d ON d.id = u.departamento_id
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.empresa_id=? AND e.admin_id=?
+            ORDER BY d.nombre, u.nombre
+        """, (empresa_id, session["admin_id"])).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/departamentos/<int:depto_id>/usuarios", methods=["POST"])
+@require_api_login
+def create_usuario(depto_id):
+    data      = request.get_json(silent=True) or {}
+    dni       = (data.get("dni") or "").strip()
+    nombre    = (data.get("nombre") or "").strip()
+    apellidos = (data.get("apellidos") or "").strip()
+    correo    = (data.get("correo") or "").strip()
+    telefono  = (data.get("telefono") or "").strip()
+    rol       = data.get("rol", "empleado")
+
+    if not dni or not nombre:
+        return jsonify({"error": "dni y nombre son obligatorios"}), 400
+
+    with get_db() as conn:
+        # Obtener empresa_id del departamento y verificar pertenencia
+        depto = conn.execute("""
+            SELECT d.id, d.empresa_id FROM departamentos d
+            JOIN empresas e ON e.id = d.empresa_id
+            WHERE d.id=? AND e.admin_id=?
+        """, (depto_id, session["admin_id"])).fetchone()
+        if not depto:
+            return jsonify({"error": "Departamento no encontrado"}), 404
+
+        qr_token = "usr_" + uuid.uuid4().hex
+        try:
+            cur = conn.execute("""
+                INSERT INTO usuarios
+                (empresa_id, departamento_id, dni, nombre, apellidos, correo, telefono, rol, qr_token)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, (depto["empresa_id"], depto_id, dni, nombre, apellidos, correo, telefono, rol, qr_token))
+            usuario_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "Ya existe un usuario con ese DNI"}), 409
+
+    generate_qr_image(qr_token)
+    return jsonify({
+        "id": usuario_id,
+        "nombre": nombre,
+        "qr_token": qr_token,
+        "message": "Usuario creado"
+    }), 201
+
+
+@app.route("/api/usuarios/<int:usuario_id>", methods=["PUT"])
+@require_api_login
+def update_usuario(usuario_id):
+    data = request.get_json(silent=True) or {}
+    with get_db() as conn:
+        u = conn.execute("""
+            SELECT u.id FROM usuarios u
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.id=? AND e.admin_id=?
+        """, (usuario_id, session["admin_id"])).fetchone()
+        if not u:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        conn.execute("""
+            UPDATE usuarios SET nombre=?, apellidos=?, correo=?,
+            telefono=?, rol=?, departamento_id=? WHERE id=?
+        """, (
+            data.get("nombre",""), data.get("apellidos",""),
+            data.get("correo",""), data.get("telefono",""),
+            data.get("rol","empleado"), data.get("departamento_id"), usuario_id
+        ))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/usuarios/<int:usuario_id>", methods=["DELETE"])
+@require_api_login
+def delete_usuario(usuario_id):
+    with get_db() as conn:
+        u = conn.execute("""
+            SELECT u.qr_token FROM usuarios u
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.id=? AND e.admin_id=?
+        """, (usuario_id, session["admin_id"])).fetchone()
+        if not u:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        conn.execute("DELETE FROM usuarios WHERE id=?", (usuario_id,))
+        qr_path = os.path.join(QR_FOLDER, f"{u['qr_token']}.png")
         if os.path.exists(qr_path):
             os.remove(qr_path)
-    return jsonify({"message": "Empleado eliminado"})
+    return jsonify({"message": "Usuario eliminado"})
 
 
-@app.route("/api/employees/<int:employee_id>/qr")
-@require_admin
-def download_qr(employee_id):
+@app.route("/api/usuarios/<int:usuario_id>/qr")
+@require_api_login
+def download_qr_usuario(usuario_id):
     with get_db() as conn:
-        emp = conn.execute("SELECT name, qr_token FROM employees WHERE id=?", (employee_id,)).fetchone()
-    if not emp:
-        return jsonify({"error": "Empleado no encontrado"}), 404
-    path = generate_qr_image(emp["qr_token"])
+        u = conn.execute("""
+            SELECT u.nombre, u.qr_token FROM usuarios u
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.id=? AND e.admin_id=?
+        """, (usuario_id, session["admin_id"])).fetchone()
+    if not u:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    path = generate_qr_image(u["qr_token"])
     return send_file(path, mimetype="image/png",
-                     download_name=f"qr_{emp['name'].replace(' ','_')}.png")
+                     download_name=f"qr_{u['nombre'].replace(' ','_')}.png")
 
 
 # ─────────────────────────────────────────────
@@ -253,147 +558,155 @@ def download_qr(employee_id):
 
 @app.route("/api/checkin", methods=["POST"])
 def checkin():
+    """
+    El kiosco escanea el QR del usuario.
+    Registra entrada (IN) o salida (OUT) automáticamente.
+    El fichaje queda vinculado al departamento y empresa del usuario.
+    """
     data  = request.get_json(silent=True) or {}
     token = (data.get("qr_token") or "").strip()
-    lat   = data.get("lat")
-    lng   = data.get("lng")
-    store = (data.get("store") or "").strip() or None
+    tipo  = data.get("tipo", "presencial")
+    ubicacion = (data.get("ubicacion") or "").strip()
 
     if not token:
         return jsonify({"error": "Token vacío"}), 400
-    if len(token) != 32 or not token.isalnum():
-        return jsonify({"error": "Formato de token inválido"}), 400
 
     with get_db() as conn:
-        emp = conn.execute(
-            "SELECT id, name FROM employees WHERE qr_token=?", (token,)
-        ).fetchone()
-        if not emp:
-            return jsonify({"error": "Token no reconocido"}), 404
+        usuario = conn.execute("""
+            SELECT u.id, u.nombre, u.apellidos, u.departamento_id, u.empresa_id,
+                   d.nombre AS departamento, e.nombre AS empresa
+            FROM usuarios u
+            JOIN departamentos d ON d.id = u.departamento_id
+            JOIN empresas e ON e.id = u.empresa_id
+            WHERE u.qr_token=?
+        """, (token,)).fetchone()
 
+        if not usuario:
+            return jsonify({"error": "Token QR no reconocido"}), 404
+
+        # Protección anti-duplicado (5 segundos)
         recent = conn.execute("""
-            SELECT ts FROM checkins WHERE employee_id=? ORDER BY ts DESC LIMIT 1
-        """, (emp["id"],)).fetchone()
+            SELECT created_at FROM fichajes WHERE usuario_id=?
+            ORDER BY created_at DESC LIMIT 1
+        """, (usuario["id"],)).fetchone()
 
         if recent:
-            last_ts = datetime.fromisoformat(recent["ts"])
-            diff    = (datetime.now() - last_ts).total_seconds()
+            diff = (datetime.now() - datetime.fromisoformat(recent["created_at"])).total_seconds()
             if diff < 5:
                 return jsonify({"error": "Fichaje duplicado, espera unos segundos"}), 429
 
-        prev      = last_direction(conn, emp["id"])
-        direction = "OUT" if prev == "IN" else "IN"
-        now_str   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Buscar si tiene fichaje abierto HOY
+        hoy = datetime.now().strftime("%Y-%m-%d")
+        fichaje_abierto = conn.execute("""
+            SELECT id FROM fichajes
+            WHERE usuario_id=? AND estado='abierto' AND DATE(entrada)=?
+        """, (usuario["id"], hoy)).fetchone()
 
-        conn.execute(
-            "INSERT INTO checkins (employee_id, direction, ts, lat, lng, store) VALUES (?,?,?,?,?,?)",
-            (emp["id"], direction, now_str, lat, lng, store)
-        )
+        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    return jsonify({"employee": emp["name"], "direction": direction, "timestamp": now_str})
+        if fichaje_abierto:
+            # Cerrar fichaje (OUT)
+            conn.execute("""
+                UPDATE fichajes SET salida=?, estado='cerrado' WHERE id=?
+            """, (ahora, fichaje_abierto["id"]))
+            direction = "OUT"
+        else:
+            # Abrir fichaje (IN)
+            conn.execute("""
+                INSERT INTO fichajes
+                (usuario_id, departamento_id, empresa_id, entrada, tipo, ubicacion, estado)
+                VALUES (?,?,?,?,?,?,'abierto')
+            """, (usuario["id"], usuario["departamento_id"], usuario["empresa_id"],
+                  ahora, tipo, ubicacion))
+            direction = "IN"
+
+    return jsonify({
+        "direction": direction,
+        "usuario":   f"{usuario['nombre']} {usuario['apellidos'] or ''}".strip(),
+        "departamento": usuario["departamento"],
+        "empresa":   usuario["empresa"],
+        "timestamp": ahora
+    })
 
 
-@app.route("/api/checkins", methods=["GET"])
-@require_admin
-def list_checkins():
-    date_filter = request.args.get("date", "")
-    emp_filter  = request.args.get("employee_id", "")
-
-    query  = """
-        SELECT c.id, e.name AS employee, c.direction, c.ts, c.lat, c.lng, c.store
-        FROM checkins c JOIN employees e ON e.id = c.employee_id WHERE 1=1
+@app.route("/api/fichajes", methods=["GET"])
+@require_api_login
+def list_fichajes():
     """
-    params = []
-    if date_filter:
-        query += " AND DATE(c.ts) = ?"
-        params.append(date_filter)
-    if emp_filter:
-        query += " AND c.employee_id = ?"
-        params.append(emp_filter)
-    query += " ORDER BY c.ts DESC LIMIT 500"
+    Devuelve fichajes del admin con filtros opcionales.
+    ?empresa_id=1  &departamento_id=2  &usuario_id=3  &fecha=YYYY-MM-DD  &estado=abierto
+    """
+    empresa_id    = request.args.get("empresa_id")
+    depto_id      = request.args.get("departamento_id")
+    usuario_id    = request.args.get("usuario_id")
+    fecha         = request.args.get("fecha")
+    estado        = request.args.get("estado")
+
+    query = """
+        SELECT f.id, f.entrada, f.salida, f.tipo, f.ubicacion, f.estado, f.created_at,
+               u.nombre AS usuario_nombre, u.apellidos AS usuario_apellidos, u.dni,
+               d.nombre AS departamento, d.id AS departamento_id,
+               e.nombre AS empresa, e.id AS empresa_id
+        FROM fichajes f
+        JOIN usuarios u ON u.id = f.usuario_id
+        JOIN departamentos d ON d.id = f.departamento_id
+        JOIN empresas e ON e.id = f.empresa_id
+        WHERE e.admin_id=?
+    """
+    params = [session["admin_id"]]
+
+    if empresa_id:
+        query += " AND f.empresa_id=?";    params.append(empresa_id)
+    if depto_id:
+        query += " AND f.departamento_id=?"; params.append(depto_id)
+    if usuario_id:
+        query += " AND f.usuario_id=?";    params.append(usuario_id)
+    if fecha:
+        query += " AND DATE(f.entrada)=?"; params.append(fecha)
+    if estado:
+        query += " AND f.estado=?";        params.append(estado)
+
+    query += " ORDER BY f.entrada DESC LIMIT 1000"
 
     with get_db() as conn:
         rows = conn.execute(query, params).fetchall()
+
     return jsonify([dict(r) for r in rows])
 
 
-@app.route("/api/checkins/<int:checkin_id>", methods=["DELETE"])
-@require_admin
-def delete_checkin(checkin_id):
+@app.route("/api/fichajes/<int:fichaje_id>/cerrar", methods=["PATCH"])
+@require_api_login
+def cerrar_fichaje(fichaje_id):
+    """Cierra manualmente un fichaje abierto (el admin puede hacerlo)."""
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM checkins WHERE id=?", (checkin_id,)).fetchone()
+        row = conn.execute("""
+            SELECT f.id FROM fichajes f
+            JOIN empresas e ON e.id = f.empresa_id
+            WHERE f.id=? AND e.admin_id=? AND f.estado='abierto'
+        """, (fichaje_id, session["admin_id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Fichaje no encontrado o ya cerrado"}), 404
+        conn.execute(
+            "UPDATE fichajes SET salida=?, estado='cerrado' WHERE id=?",
+            (ahora, fichaje_id)
+        )
+    return jsonify({"ok": True, "salida": ahora})
+
+
+@app.route("/api/fichajes/<int:fichaje_id>", methods=["DELETE"])
+@require_api_login
+def delete_fichaje(fichaje_id):
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT f.id FROM fichajes f
+            JOIN empresas e ON e.id = f.empresa_id
+            WHERE f.id=? AND e.admin_id=?
+        """, (fichaje_id, session["admin_id"])).fetchone()
         if not row:
             return jsonify({"error": "Fichaje no encontrado"}), 404
-        conn.execute("DELETE FROM checkins WHERE id=?", (checkin_id,))
+        conn.execute("DELETE FROM fichajes WHERE id=?", (fichaje_id,))
     return jsonify({"message": "Fichaje eliminado"})
-
-
-# ─────────────────────────────────────────────
-# RUTAS – USUARIOS  (solo admin)
-# ─────────────────────────────────────────────
-
-@app.route("/api/users", methods=["GET"])
-@require_admin
-def list_users():
-    with get_db() as conn:
-        rows = conn.execute("SELECT id, username, rol FROM users ORDER BY username").fetchall()
-    return jsonify([dict(r) for r in rows])
-
-
-@app.route("/api/users", methods=["POST"])
-@require_admin
-def create_user():
-    data     = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
-    rol      = data.get("rol", "empleado")
-
-    if not username or not password:
-        return jsonify({"error": "username y password son obligatorios"}), 400
-    if rol not in ("admin", "empleado"):
-        return jsonify({"error": "rol inválido"}), 400
-
-    try:
-        with get_db() as conn:
-            conn.execute(
-                "INSERT INTO users (username, password, rol) VALUES (?,?,?)",
-                (username, password, rol)
-            )
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "El usuario ya existe"}), 409
-
-    return jsonify({"message": f"Usuario '{username}' creado"}), 201
-
-
-@app.route("/api/users/<int:user_id>", methods=["DELETE"])
-@require_admin
-def delete_user(user_id):
-    with get_db() as conn:
-        row = conn.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
-        if not row:
-            return jsonify({"error": "Usuario no encontrado"}), 404
-        if row["username"] == "admin":
-            return jsonify({"error": "No puedes eliminar el admin principal"}), 403
-        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
-    return jsonify({"message": "Usuario eliminado"})
-
-
-# ─────────────────────────────────────────────
-# RUTAS – FRONTEND
-# ─────────────────────────────────────────────
-
-@app.route("/")
-def kiosk():
-    if "username" not in session:
-        return redirect(url_for("login_page"))
-    return render_template("kiosk.html")
-
-
-@app.route("/admin")
-def admin():
-    if session.get("rol") != "admin":
-        return redirect(url_for("login_page"))
-    return render_template("admin.html")
 
 
 # ─────────────────────────────────────────────
@@ -403,6 +716,7 @@ def admin():
 if __name__ == "__main__":
     init_db()
     print("\n Sistema de fichaje arrancado en http://localhost:5000")
-    print(" Panel admin en http://localhost:5000/admin")
-    print(" Credenciales por defecto → admin / admin123\n")
+    print(" Panel admin:  http://localhost:5000/admin")
+    print(" Kiosco:       http://localhost:5000/kiosk")
+    print(" Login:        admin@admin.com / admin123\n")
     app.run(debug=True, host="0.0.0.0", port=5000)
