@@ -2,9 +2,9 @@
 const express      = require('express');
 const router       = express.Router();
 const { body, query, validationResult } = require('express-validator');
-const apiKeyMiddleware  = require('../middleware/apiKey');
-const authMiddleware    = require('../middleware/auth');
-const db           = require('../db');
+const apiKeyMiddleware  = require('./apiKey');
+const authMiddleware    = require('./auth');
+const db           = require('./db');
 
 // POST /api/checkins — registrar fichaje (solo kiosco con X-API-Key)
 router.post(

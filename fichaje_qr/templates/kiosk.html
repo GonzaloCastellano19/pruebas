@@ -435,9 +435,10 @@
         status.className   = 'status-box warn';
         status.textContent = '⚠️ Fichaje duplicado — espera unos segundos';
       } else {
-        // Sin token de empleado asignado — confirmación visual únicamente
-        status.className   = 'status-box ok';
-        status.textContent = `${tipo === 'entrada' ? '✅ ENTRADA' : '🚪 SALIDA'} registrada · ${now.toLocaleTimeString('es-ES')}`;
+        // Error real al registrar el fichaje — mostrar el mensaje del servidor
+        status.className   = 'status-box err';
+        const errMsg = data?.error || 'Error al registrar el fichaje. Consulta al administrador.';
+        status.textContent = '❌ ' + errMsg;
       }
     } catch(_) {
       status.className   = 'status-box err';
