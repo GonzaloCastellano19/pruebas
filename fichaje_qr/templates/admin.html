@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin – Fichaje QR</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0b0f1a;
+      --surface: #111827;
+      --border:  #1f2d40;
+      --accent:  #00e5ff;
+      --gold:    #fbbf24;
+      --green:   #22c55e;
+      --red:     #f43f5e;
+      --text:    #e2e8f0;
+      --muted:   #4b5e72;
+    }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .25;
+      pointer-events: none;
+    }
+
+    /* HEADER */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(11,15,26,.95);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+    }
+    .brand { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: white; }
+    .brand span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .admin-badge {
+      background: rgba(251,191,36,.12);
+      border: 1px solid rgba(251,191,36,.3);
+      color: var(--gold);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+    .back-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .2s;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* TABS */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      padding: 0 32px;
+      background: rgba(11,15,26,.8);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 14px 20px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: all .2s;
+    }
+    .tab:hover  { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* CONTENT */
+    .content { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: white;
+    }
+
+    /* CARD */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .card-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* FORM */
+    .form-row {
+      display: flex;
+      gap: 10px;
+      padding: 16px 20px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .form-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 140px; }
+    .form-field label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+    .form-field input,
+    .form-field select {
+      padding: 10px 13px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      outline: none;
+    }
+    .form-field input:focus,
+    .form-field select:focus { border-color: var(--accent); }
+    .form-field input::placeholder { color: var(--muted); }
+
+    .btn-add {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 9px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+      align-self: flex-end;
+    }
+    .btn-add:hover { opacity: .85; }
+
+    /* FILTERS */
+    .filters {
+      display: flex;
+      gap: 10px;
+      padding: 14px 20px;
+      flex-wrap: wrap;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .filters input[type="date"],
+    .filters select {
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      outline: none;
+    }
+    .filters input:focus, .filters select:focus { border-color: var(--accent); }
+
+    .btn-filter {
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .2s;
+    }
+    .btn-filter:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-export {
+      padding: 8px 16px;
+      background: rgba(0,229,255,.1);
+      border: 1px solid rgba(0,229,255,.3);
+      color: var(--accent);
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    .btn-export:hover { background: rgba(0,229,255,.18); }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      padding: 11px 20px;
+      text-align: left;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: rgba(0,0,0,.2);
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    .empty-row td { text-align: center; color: var(--muted); padding: 32px; font-size: 12px; }
+
+    /* BADGES */
+    .badge { padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 500; }
+    .badge-in    { background: rgba(34,197,94,.12);  color: var(--green); }
+    .badge-out   { background: rgba(244,63,94,.12);  color: var(--red); }
+    .badge-admin { background: rgba(251,191,36,.12); color: var(--gold); }
+    .badge-emp   { background: rgba(0,229,255,.1);   color: var(--accent); }
+
+    /* ACTIONS */
+    .btn-del {
+      background: none;
+      border: 1px solid rgba(244,63,94,.3);
+      color: var(--red);
+      padding: 4px 10px;
+      border-radius: 7px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn-del:hover { background: rgba(244,63,94,.12); }
+    .qr-link {
+      color: var(--accent);
+      font-size: 11px;
+      text-decoration: none;
+      border: 1px solid rgba(0,229,255,.3);
+      padding: 4px 10px;
+      border-radius: 7px;
+      transition: background .2s;
+    }
+    .qr-link:hover { background: rgba(0,229,255,.08); }
+    .token-mono { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      border: 1px solid;
+      z-index: 999;
+      transform: translateY(10px);
+      opacity: 0;
+      transition: all .3s;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.ok   { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.4); color: var(--green); }
+    .toast.err  { background: rgba(244,63,94,.12); border-color: rgba(244,63,94,.4); color: var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">QR<span>Access</span></div>
+  <div class="header-right">
+    <span class="admin-badge">⚡ ADMIN</span>
+    <a href="/" class="back-btn">← Kiosco</a>
+    <button class="back-btn" id="logoutBtn">Salir</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="empleados">👤 Empleados</div>
+  <div class="tab" data-tab="fichajes">📋 Fichajes</div>
+  <div class="tab" data-tab="usuarios">🔐 Usuarios</div>
+  <div class="tab" data-tab="qr">🔗 Generar QR tienda</div>
+</div>
+
+<div class="content">
+
+  <!-- ── EMPLEADOS ── -->
+  <div class="section active" id="tab-empleados">
+    <div class="section-title">Empleados</div>
+    <div class="card">
+      <div class="card-header">Nuevo empleado</div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Nombre completo</label>
+          <input id="empNombre" placeholder="Ana García" maxlength="100">
+        </div>
+        <button class="btn-add" onclick="crearEmpleado()">+ Crear</button>
+      </div>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Nombre</th><th>Token QR</th><th>Alta</th><th>QR</th><th></th></tr></thead>
+        <tbody id="tbEmpleados"><tr class="empty-row"><td colspan="5">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── FICHAJES ── -->
+  <div class="section" id="tab-fichajes">
+    <div class="section-title">Registro de Fichajes</div>
+    <div class="card">
+      <div class="filters">
+        <input type="date" id="filtroFecha">
+        <select id="filtroEmp">
+          <option value="">Todos los empleados</option>
+        </select>
+        <button class="btn-filter" onclick="cargarFichajes()">Filtrar</button>
+        <button class="btn-export" onclick="exportarCSV()">↓ Exportar CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>Empleado</th><th>Dirección</th><th>Fecha/Hora</th><th>Tienda</th><th>Ubicación</th><th></th></tr></thead>
+        <tbody id="tbFichajes"><tr class="empty-row"><td colspan="6">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── USUARIOS ── -->
+  <div class="section" id="tab-usuarios">
+    <div class="section-title">Usuarios del sistema</div>
+    <div class="card">
+      <div class="card-header">Nuevo usuario</div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Usuario</label>
+          <input id="uNombre" placeholder="empleado1">
+        </div>
+        <div class="form-field">
+          <label>Contraseña</label>
+          <input id="uPass" type="password" placeholder="••••••••">
+        </div>
+        <div class="form-field" style="max-width:140px;">
+          <label>Rol</label>
+          <select id="uRol">
+            <option value="empleado">Empleado</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="btn-add" onclick="crearUsuario()">+ Crear</button>
+      </div>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead>
+        <tbody id="tbUsuarios"><tr class="empty-row"><td colspan="3">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── QR TIENDA ── -->
+  <div class="section" id="tab-qr">
+    <div class="section-title">Generar QR de Tienda</div>
+    <div class="card">
+      <div class="card-header">El empleado escaneará este QR para acceder al kiosco con la tienda ya asignada</div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Nombre de la tienda</label>
+          <input id="qrTienda" placeholder="Tienda Norte">
+        </div>
+        <button class="btn-add" onclick="generarQR()">Generar QR</button>
+      </div>
+      <div style="padding: 0 20px 20px; display:flex; flex-direction:column; align-items:flex-start; gap:10px;">
+        <div id="qrOutput"></div>
+        <div id="qrUrl" style="font-size:11px; color:var(--muted); word-break:break-all;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+
+  // ── Guard admin ───────────────────────────────────────────
+  (async () => {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) { window.location.href = '/login'; return; }
+    const data = await res.json();
+    if (data.rol !== 'admin') { window.location.href = '/'; }
+  })();
+
+  // ── Tabs ──────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+      if (tab.dataset.tab === 'empleados') cargarEmpleados();
+      if (tab.dataset.tab === 'fichajes')  cargarFichajes();
+      if (tab.dataset.tab === 'usuarios')  cargarUsuarios();
+    });
+  });
+
+  // ── Toast ─────────────────────────────────────────────────
+  function toast(msg, tipo = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className   = `toast ${tipo} show`;
+    setTimeout(() => el.classList.remove('show'), 3500);
+  }
+
+  // ── Logout ────────────────────────────────────────────────
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  });
+
+  // ── EMPLEADOS ─────────────────────────────────────────────
+  let empleadosCache = [];
+
+  async function cargarEmpleados() {
+    const tbody = document.getElementById('tbEmpleados');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Cargando...</td></tr>';
+    try {
+      const res  = await fetch('/api/employees');
+      empleadosCache = await res.json();
+
+      // Actualizar select filtro fichajes
+      const sel  = document.getElementById('filtroEmp');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">Todos los empleados</option>';
+      empleadosCache.forEach(e => {
+        const o = document.createElement('option');
+        o.value = e.id; o.textContent = e.name;
+        sel.appendChild(o);
+      });
+      sel.value = prev;
+
+      if (!empleadosCache.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Sin empleados</td></tr>';
+        return;
+      }
+      tbody.innerHTML = empleadosCache.map(e => `
+        <tr>
+          <td><strong>${esc(e.name)}</strong></td>
+          <td><span class="token-mono">${esc(e.qr_token)}</span></td>
+          <td style="color:var(--muted)">${esc(e.created_at)}</td>
+          <td><a class="qr-link" href="/api/employees/${e.id}/qr" target="_blank">↓ QR</a></td>
+          <td><button class="btn-del" onclick="eliminarEmpleado(${e.id},'${esc(e.name)}')">Eliminar</button></td>
+        </tr>
+      `).join('');
+    } catch(err) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Error: ${esc(err.message)}</td></tr>`;
+    }
+  }
+
+  async function crearEmpleado() {
+    const nombre = document.getElementById('empNombre').value.trim();
+    if (!nombre) { toast('Escribe un nombre', 'err'); return; }
+    const res  = await fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nombre })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('empNombre').value = '';
+      toast(`Empleado "${data.employee.name}" creado`);
+      cargarEmpleados();
+    } else {
+      toast(data.error || 'Error al crear', 'err');
+    }
+  }
+
+  async function eliminarEmpleado(id, nombre) {
+    if (!confirm(`¿Eliminar a "${nombre}" y todos sus fichajes?`)) return;
+    const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('Empleado eliminado'); cargarEmpleados(); cargarFichajes(); }
+    else toast('Error al eliminar', 'err');
+  }
+
+  // ── FICHAJES ──────────────────────────────────────────────
+  let fichajesCache = [];
+
+  async function cargarFichajes() {
+    const tbody = document.getElementById('tbFichajes');
+    const fecha = document.getElementById('filtroFecha').value;
+    const emp   = document.getElementById('filtroEmp').value;
+
+    let url = '/api/checkins?';
+    if (fecha) url += `date=${fecha}&`;
+    if (emp)   url += `employee_id=${emp}&`;
+
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Cargando...</td></tr>';
+    try {
+      const res = await fetch(url);
+      fichajesCache = await res.json();
+
+      if (!fichajesCache.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Sin fichajes con esos filtros</td></tr>';
+        return;
+      }
+      tbody.innerHTML = fichajesCache.map(f => `
+        <tr>
+          <td>${esc(f.employee)}</td>
+          <td><span class="badge badge-${f.direction.toLowerCase()}">${f.direction}</span></td>
+          <td style="color:var(--muted)">${esc(f.ts)}</td>
+          <td>${esc(f.store || '—')}</td>
+          <td style="font-size:10px;color:var(--muted)">${f.lat ? `${(+f.lat).toFixed(4)}, ${(+f.lng).toFixed(4)}` : '—'}</td>
+          <td><button class="btn-del" onclick="eliminarFichaje(${f.id})">✕</button></td>
+        </tr>
+      `).join('');
+    } catch(err) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6">Error: ${esc(err.message)}</td></tr>`;
+    }
+  }
+
+  async function eliminarFichaje(id) {
+    if (!confirm('¿Eliminar este fichaje?')) return;
+    const res = await fetch(`/api/checkins/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('Fichaje eliminado'); cargarFichajes(); }
+    else toast('Error al eliminar', 'err');
+  }
+
+  function exportarCSV() {
+    if (!fichajesCache.length) { toast('No hay datos para exportar', 'err'); return; }
+    const rows = [['Empleado','Dirección','Fecha/Hora','Tienda','Lat','Lng']];
+    fichajesCache.forEach(f => rows.push([f.employee, f.direction, f.ts, f.store||'', f.lat||'', f.lng||'']));
+    const csv  = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href  = URL.createObjectURL(blob);
+    link.download = `fichajes_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+  }
+
+  // ── USUARIOS ─────────────────────────────────────────────
+  async function cargarUsuarios() {
+    const tbody = document.getElementById('tbUsuarios');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Cargando...</td></tr>';
+    try {
+      const res   = await fetch('/api/users');
+      const users = await res.json();
+      if (!users.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Sin usuarios</td></tr>';
+        return;
+      }
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${esc(u.username)}</td>
+          <td><span class="badge ${u.rol==='admin'?'badge-admin':'badge-emp'}">${u.rol}</span></td>
+          <td>${u.username !== 'admin' ? `<button class="btn-del" onclick="eliminarUsuario(${u.id},'${esc(u.username)}')">Eliminar</button>` : '<span style="color:var(--muted);font-size:11px;">protegido</span>'}</td>
+        </tr>
+      `).join('');
+    } catch(err) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="3">Error: ${esc(err.message)}</td></tr>`;
+    }
+  }
+
+  async function crearUsuario() {
+    const username = document.getElementById('uNombre').value.trim();
+    const password = document.getElementById('uPass').value;
+    const rol      = document.getElementById('uRol').value;
+    if (!username || !password) { toast('Rellena usuario y contraseña', 'err'); return; }
+    const res  = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, rol })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('uNombre').value = '';
+      document.getElementById('uPass').value   = '';
+      toast(`Usuario "${username}" creado`);
+      cargarUsuarios();
+    } else {
+      toast(data.error || 'Error al crear', 'err');
+    }
+  }
+
+  async function eliminarUsuario(id, nombre) {
+    if (!confirm(`¿Eliminar usuario "${nombre}"?`)) return;
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('Usuario eliminado'); cargarUsuarios(); }
+    else toast('Error al eliminar', 'err');
+  }
+
+  // ── GENERAR QR ────────────────────────────────────────────
+  function generarQR() {
+    const nombre = document.getElementById('qrTienda').value.trim();
+    if (!nombre) { toast('Escribe el nombre de la tienda', 'err'); return; }
+    const url = `${location.origin}/?tienda=${encodeURIComponent(nombre)}`;
+    document.getElementById('qrOutput').innerHTML = '<div id="qrCanvas" style="background:white;padding:12px;border-radius:8px;display:inline-block;"></div>';
+    document.getElementById('qrUrl').textContent  = url;
+    new QRCode(document.getElementById('qrCanvas'), {
+      text: url, width: 180, height: 180,
+      colorDark: '#0b0f1a', colorLight: '#ffffff'
+    });
+    toast(`QR de "${nombre}" generado`);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  cargarEmpleados();
+  cargarFichajes();
+  setInterval(() => {
+    cargarEmpleados();
+    cargarFichajes();
+  }, 20000);
+</script>
+</body>
+</html>
