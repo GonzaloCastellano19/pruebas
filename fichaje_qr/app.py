@@ -79,10 +79,10 @@ def init_db():
                 ("admin", generate_password_hash("admin123"), "admin")
             )
         elif not existing["password"].startswith("pbkdf2:"):
-            # Migrar contraseña antigua (plaintext) a hash seguro
+            # Migrar contraseña antigua (plaintext) a hash seguro conservando la clave actual
             conn.execute(
                 "UPDATE users SET password=? WHERE username='admin'",
-                (generate_password_hash("admin123"),)
+                (generate_password_hash(existing["password"]),)
             )
 
     os.makedirs(QR_FOLDER, exist_ok=True)
@@ -449,4 +449,5 @@ if __name__ == "__main__":
     print("\n Sistema de fichaje arrancado en http://localhost:5000")
     print(" Panel admin en http://localhost:5000/admin")
     print(" Credenciales por defecto → admin / admin123\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+    app.run(debug=debug, host="0.0.0.0", port=5000)

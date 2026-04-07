@@ -15,8 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
-/* eslint-disable-next-line */
-const authRoutes     = require('./auth(1)');
+const authRoutes     = require('./authRoutes');
 const employeeRoutes = require('./employees');
 const checkinRoutes  = require('./checkins');
 const terminalRoutes = require('./terminals');

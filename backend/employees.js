@@ -2,8 +2,8 @@
 const express   = require('express');
 const router    = express.Router();
 const { body, query, param, validationResult } = require('express-validator');
-const authMiddleware = require('../middleware/auth');
-const db        = require('../db');
+const authMiddleware = require('./auth');
+const db        = require('./db');
 
 // GET /api/employees — listar empleados (requiere JWT admin)
 router.get(

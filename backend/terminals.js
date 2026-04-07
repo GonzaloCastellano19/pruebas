@@ -2,8 +2,8 @@
 const express   = require('express');
 const router    = express.Router();
 const { body, validationResult } = require('express-validator');
-const authMiddleware = require('../middleware/auth');
-const db        = require('../db');
+const authMiddleware = require('./auth');
+const db        = require('./db');
 
 // GET /api/terminals — listar terminales
 router.get('/', authMiddleware, (req, res) => {

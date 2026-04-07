@@ -122,7 +122,7 @@ describe('EMPLOYEES', () => {
         .set('X-API-Key', API_KEY)
         .send({ qr_token: 'emp_tokenquenoexiste' });
 
-      expect(res.statusCode).toBe(400); // falla validación de formato
+      expect(res.statusCode).toBe(404); // token con formato válido pero no registrado en el sistema
     });
 
     test('GET /api/checkins devuelve lista de fichajes', async () => {

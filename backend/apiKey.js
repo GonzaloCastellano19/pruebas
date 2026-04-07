@@ -1,5 +1,5 @@
 // middleware/apiKey.js — verifica la X-API-Key del kiosco/terminal
-const db = require('../db');
+const db = require('./db');
 
 module.exports = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
