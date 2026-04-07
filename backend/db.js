@@ -2,6 +2,7 @@
 // Cuando conectes SQLite, solo tendrás que cambiar este archivo.
 
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 
 // ── Datos de ejemplo precargados ─────────────────────────────────────────────
 const db = {
@@ -34,9 +35,9 @@ const db = {
 
   checkins: [],
 
-  // Usuario admin de prueba
+  // Usuario admin de prueba (contraseña: admin123)
   admins: [
-    { id: 1, username: 'admin', password: 'admin123' }
+    { id: 1, username: 'admin', passwordHash: bcrypt.hashSync('admin123', 10) }
   ],
 
   // Contadores para IDs autoincrementales

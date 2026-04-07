@@ -1,6 +1,6 @@
 // tests/api.test.js — pruebas básicas de todos los endpoints
 const request = require('supertest');
-const app     = require('../src/app');
+const app     = require('./app');
 
 let adminToken = '';
 const API_KEY  = 'terminal_key_123456';
@@ -120,7 +120,7 @@ describe('EMPLOYEES', () => {
       const res = await request(app)
         .post('/api/checkins')
         .set('X-API-Key', API_KEY)
-        .send({ qr_token: 'emp_tokenquenoexi ste' });
+        .send({ qr_token: 'emp_tokenquenoexiste' });
 
       expect(res.statusCode).toBe(400); // falla validación de formato
     });
