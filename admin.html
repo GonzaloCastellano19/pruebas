@@ -328,6 +328,7 @@
         item.classList.add('active');
         const sec = item.dataset.sec;
         document.getElementById('sec-' + sec).classList.add('active');
+        if (sec !== 'resumen' && resumenUnsub) { resumenUnsub(); resumenUnsub = null; }
         if (sec === 'resumen')       loadResumen();
         if (sec === 'usuarios')      loadUsuarios();
         if (sec === 'departamentos') loadDepartamentos();
@@ -352,42 +353,45 @@
     // ─────────────────────────────────────────────────────────────────────────
     //  RESUMEN
     // ─────────────────────────────────────────────────────────────────────────
-    async function loadResumen() {
-      try {
-        const [uSnap, dSnap, fSnap] = await Promise.all([
-          db.collection('usuarios').get(),
-          db.collection('departamentos').get(),
-          db.collection('fichajes').orderBy('timestamp','desc').limit(200).get()
-        ]);
-        document.getElementById('stUsuarios').textContent = uSnap.size;
-        document.getElementById('stDepts').textContent    = dSnap.size;
+    function loadResumen() {
+      if (resumenUnsub) resumenUnsub();
 
-        const hoy = new Date(); hoy.setHours(0,0,0,0);
-        const hoyN = fSnap.docs.filter(d => { const ts = d.data().timestamp; return ts && ts.toDate && ts.toDate() >= hoy; }).length;
-        document.getElementById('stHoy').textContent = hoyN;
+      resumenUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(200).onSnapshot(async fSnap => {
+        try {
+          const [uSnap, dSnap] = await Promise.all([
+            db.collection('usuarios').get(),
+            db.collection('departamentos').get()
+          ]);
+          document.getElementById('stUsuarios').textContent = uSnap.size;
+          document.getElementById('stDepts').textContent    = dSnap.size;
 
-        // quién está dentro (último fichaje = entrada)
-        const last = {};
-        fSnap.docs.slice().reverse().forEach(d => { const f = d.data(); if(!last[f.userId]) last[f.userId] = f.tipo; });
-        document.getElementById('stActivos').textContent = Object.values(last).filter(t=>t==='entrada').length;
+          const hoy = new Date(); hoy.setHours(0,0,0,0);
+          const hoyN = fSnap.docs.filter(d => { const ts = d.data().timestamp; return ts && ts.toDate && ts.toDate() >= hoy; }).length;
+          document.getElementById('stHoy').textContent = hoyN;
 
-        const recientes = fSnap.docs.slice(0,10);
-        if (!recientes.length) {
-          document.getElementById('recentFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
-          return;
-        }
-        document.getElementById('recentFichajes').innerHTML = `<table><thead><tr>
-          <th>Nombre</th><th>Departamento</th><th>Tipo</th><th>Hora exacta</th>
-        </tr></thead><tbody>${recientes.map(d => {
-          const f = d.data();
-          return `<tr>
-            <td>${f.nombre||f.email||'—'}</td>
-            <td style="color:var(--muted)">${f.departamento||'—'}</td>
-            <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
-            <td style="color:var(--accent);font-weight:500">${fmt(f.timestamp)}</td>
-          </tr>`;
-        }).join('')}</tbody></table>`;
-      } catch(e) { console.error(e); }
+          // quién está dentro (último fichaje = entrada)
+          const last = {};
+          fSnap.docs.slice().reverse().forEach(d => { const f = d.data(); if(!last[f.userId]) last[f.userId] = f.tipo; });
+          document.getElementById('stActivos').textContent = Object.values(last).filter(t=>t==='entrada').length;
+
+          const recientes = fSnap.docs.slice(0,10);
+          if (!recientes.length) {
+            document.getElementById('recentFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
+            return;
+          }
+          document.getElementById('recentFichajes').innerHTML = `<table><thead><tr>
+            <th>Nombre</th><th>Departamento</th><th>Tipo</th><th>Hora exacta</th>
+          </tr></thead><tbody>${recientes.map(d => {
+            const f = d.data();
+            return `<tr>
+              <td>${f.nombre||f.email||'—'}</td>
+              <td style="color:var(--muted)">${f.departamento||'—'}</td>
+              <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
+              <td style="color:var(--accent);font-weight:500">${fmt(f.timestamp)}</td>
+            </tr>`;
+          }).join('')}</tbody></table>`;
+        } catch(e) { console.error(e); }
+      }, err => console.error(err));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -509,11 +513,9 @@
     function renderQRCard(id, data) {
       const card = document.createElement('div');
       card.className = 'qr-card';
-      const locText = (data.lat != null && data.lng != null) ? `📍 ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}` : '📍 Sin ubicación configurada';
       card.innerHTML = `
         <div class="qr-dept">${data.nombre}</div>
         <div class="qr-empresa">${data.empresa||''}</div>
-        <div class="qr-loc">${locText}</div>
         <div class="qr-box" id="qrbox-${id}"></div>
         <div class="qr-actions">
           <button class="btn-download" onclick="verQR('${id}','${data.nombre}','${data.empresa||''}')">🔍 Ver / Descargar</button>
@@ -602,7 +604,6 @@
     function verQR(id, nombre, empresa) {
       const qrUrl = `${new URL('.', location.href).href}index.html?dept=${id}`;
       document.getElementById('qrModalTitle').textContent = nombre;
-      document.getElementById('qrModalInfo').textContent  = qrUrl;
       document.getElementById('qrModalCanvas').innerHTML  = '';
       currentQRData = { id, nombre };
       new QRCode(document.getElementById('qrModalCanvas'), {
@@ -636,6 +637,7 @@
     //  FICHAJES (tiempo real con listener)
     // ─────────────────────────────────────────────────────────────────────────
     let fichajesUnsub = null;
+    let resumenUnsub = null;
 
     function loadFichajes() {
       document.getElementById('tablaFichajes').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
