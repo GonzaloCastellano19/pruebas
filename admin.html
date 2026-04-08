@@ -879,17 +879,30 @@
       if (filters.tipo) labels.push('\uD83D\uDCCB ' + filters.tipo);
 
       try {
-        let query = db.collection('fichajes').orderBy('timestamp','desc').limit(300);
+        let query;
         if (filters.userId) {
-          query = db.collection('fichajes').where('userId','==',filters.userId).orderBy('timestamp','desc').limit(300);
+          query = db.collection('fichajes').where('userId','==',filters.userId).limit(300);
         } else if (filters.departamento) {
-          query = db.collection('fichajes').where('departamento','==',filters.departamento).orderBy('timestamp','desc').limit(300);
+          query = db.collection('fichajes').where('departamento','==',filters.departamento).limit(300);
         } else if (filters.tipo) {
-          query = db.collection('fichajes').where('tipo','==',filters.tipo).orderBy('timestamp','desc').limit(300);
+          query = db.collection('fichajes').where('tipo','==',filters.tipo).limit(300);
+        } else {
+          query = db.collection('fichajes').orderBy('timestamp','desc').limit(300);
         }
 
         const snap = await query.get();
         let docs = snap.docs;
+
+        // Sort client-side when using filtered queries (no orderBy to avoid composite index requirement)
+        if (filters.userId || filters.departamento || filters.tipo) {
+          docs = docs.slice().sort(function(a, b) {
+            const ta = a.data().timestamp;
+            const tb = b.data().timestamp;
+            const da = ta && ta.toDate ? ta.toDate() : new Date(0);
+            const dateB = tb && tb.toDate ? tb.toDate() : new Date(0);
+            return dateB - da; // descending
+          });
+        }
 
         if (filters.nombre && !filters.userId) {
           docs = docs.filter(function(d) {
