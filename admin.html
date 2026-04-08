@@ -431,17 +431,26 @@
             document.getElementById('recentFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
             return;
           }
-          document.getElementById('recentFichajes').innerHTML = `<table><thead><tr>
-            <th>Nombre</th><th>Departamento</th><th>Tipo</th><th>Hora exacta</th>
-          </tr></thead><tbody>${recientes.map(d => {
+          const tbody = recientes.map(d => {
             const f = d.data();
+            const nombre = f.nombre || f.email || '—';
+            const dept   = f.departamento || '—';
+            const tipo   = f.tipo || '';
+            const userId = f.userId || '';
             return `<tr>
-              <td><span style="cursor:pointer;color:var(--accent)" onclick="goToFichajesFiltered({nombre:'${esc(f.nombre||'')}',userId:'${f.userId||''}'})">${f.nombre||f.email||'—'}</span></td>
-              <td><span style="cursor:pointer;color:var(--muted)" onclick="goToFichajesFiltered({departamento:'${esc(f.departamento||'')}'})">${f.departamento||'—'}</span></td>
-              <td><span class="pill pill-${f.tipo}" style="cursor:pointer" onclick="goToFichajesFiltered({tipo:'${f.tipo}'})">${f.tipo}</span></td>
+              <td><span class="resumen-link" data-filter-type="user" data-nombre="${escAttr(nombre)}" data-userid="${escAttr(userId)}" style="cursor:pointer;color:var(--accent);text-decoration:underline dotted">${nombre}</span></td>
+              <td><span class="resumen-link" data-filter-type="dept" data-departamento="${escAttr(dept)}" style="cursor:pointer;color:var(--muted);text-decoration:underline dotted">${dept}</span></td>
+              <td><span class="resumen-link pill pill-${tipo}" data-filter-type="tipo" data-tipo="${escAttr(tipo)}" style="cursor:pointer">${tipo}</span></td>
               <td style="color:var(--accent);font-weight:500">${fmt(f.timestamp)}</td>
             </tr>`;
-          }).join('')}</tbody></table>`;
+          }).join('');
+          document.getElementById('recentFichajes').innerHTML = `
+            <table>
+              <thead><tr>
+                <th>Nombre</th><th>Departamento</th><th>Tipo</th><th>Hora exacta</th>
+              </tr></thead>
+              <tbody>${tbody}</tbody>
+            </table>`;
         } catch(e) { console.error(e); }
       }, err => console.error(err));
     }
@@ -734,8 +743,36 @@
       return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     }
 
+    // ── HTML attribute encoder (for data-* values) ────────────────────────────
+    function escAttr(str) {
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;');
+    }
+
     // ── Carga inicial ─────────────────────────────────────────────────────────
     loadResumen();
+
+    // ── Delegated click listener for Resumen → Fichajes filtered ─────────────
+    document.getElementById('recentFichajes').addEventListener('click', function(e) {
+      const span = e.target.closest('.resumen-link');
+      if (!span) return;
+      const type = span.dataset.filterType;
+      if (type === 'user') {
+        const nombre = span.dataset.nombre;
+        const userId = span.dataset.userid;
+        if (nombre && nombre !== '—') goToFichajesFiltered(userId ? { nombre, userId } : { nombre });
+      } else if (type === 'dept') {
+        const dept = span.dataset.departamento;
+        if (dept && dept !== '—') goToFichajesFiltered({ departamento: dept });
+      } else if (type === 'tipo') {
+        const tipo = span.dataset.tipo;
+        if (tipo) goToFichajesFiltered({ tipo });
+      }
+    });
 
     // ─────────────────────────────────────────────────────────────────────────
     //  USER PROFILE DRAWER
