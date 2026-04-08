@@ -320,6 +320,10 @@
       localStorage.removeItem('user'); location.href = 'index.html';
     });
 
+    // ── Listeners de tiempo real ──────────────────────────────────────────────
+    let fichajesUnsub = null;
+    let resumenUnsub = null;
+
     // ── Navegación ────────────────────────────────────────────────────────────
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -636,9 +640,6 @@
     // ─────────────────────────────────────────────────────────────────────────
     //  FICHAJES (tiempo real con listener)
     // ─────────────────────────────────────────────────────────────────────────
-    let fichajesUnsub = null;
-    let resumenUnsub = null;
-
     function loadFichajes() {
       document.getElementById('tablaFichajes').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
       if (fichajesUnsub) fichajesUnsub(); // cancelar listener anterior
