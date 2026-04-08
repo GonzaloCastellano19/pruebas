@@ -157,6 +157,31 @@
     .toast.err { background: rgba(244,63,94,.15);  border: 1px solid rgba(244,63,94,.4);  color: var(--danger); }
 
     @media(max-width:768px){ .sidebar{display:none} .main{margin-left:0;padding:18px} }
+
+    /* ── User profile drawer ── */
+    .drawer-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(3px); z-index:300; }
+    .drawer-overlay.show { display:block; }
+    .drawer { position:fixed; top:0; right:0; bottom:0; width:480px; max-width:95vw; background:var(--surface); border-left:1px solid var(--border); z-index:301; overflow-y:auto; transform:translateX(100%); transition:transform .3s ease; display:flex; flex-direction:column; }
+    .drawer.show { transform:translateX(0); }
+    .drawer-header { padding:28px 28px 20px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .drawer-avatar { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:white; flex-shrink:0; }
+    .drawer-info { flex:1; }
+    .drawer-name { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; color:white; margin-bottom:4px; }
+    .drawer-email { font-size:12px; color:var(--muted); margin-bottom:2px; }
+    .drawer-meta { font-size:11px; color:var(--muted); }
+    .drawer-close { background:transparent; border:1px solid var(--border); color:var(--muted); width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .2s; }
+    .drawer-close:hover { border-color:var(--text); color:var(--text); }
+    .drawer-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:20px 28px; border-bottom:1px solid var(--border); }
+    .dstat { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .dstat-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+    .dstat-value { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:white; }
+    .drawer-section-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); padding:18px 28px 10px; }
+    .drawer-table-wrap { flex:1; overflow-y:auto; }
+    .drawer-table-wrap table { width:100%; border-collapse:collapse; font-size:12px; }
+    .drawer-table-wrap th { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); padding:9px 20px; text-align:left; border-bottom:1px solid var(--border); background:rgba(0,0,0,.2); position:sticky; top:0; }
+    .drawer-table-wrap td { padding:11px 20px; border-bottom:1px solid rgba(31,45,64,.4); }
+    .drawer-table-wrap tr:last-child td { border-bottom:none; }
+    .drawer-footer { padding:20px 28px; border-top:1px solid var(--border); display:flex; gap:10px; }
   </style>
 </head>
 <body>
@@ -281,6 +306,29 @@
     </div>
   </div>
 
+  <!-- User profile drawer -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <div class="drawer" id="userDrawer">
+    <div class="drawer-header">
+      <div class="drawer-avatar" id="drawerAvatar"></div>
+      <div class="drawer-info">
+        <div class="drawer-name" id="drawerName"></div>
+        <div class="drawer-email" id="drawerEmail"></div>
+        <div class="drawer-meta" id="drawerMeta"></div>
+      </div>
+      <button class="drawer-close" id="drawerClose">✕</button>
+    </div>
+    <div class="drawer-stats" id="drawerStats"></div>
+    <div class="drawer-section-title">Historial de fichajes</div>
+    <div class="drawer-table-wrap">
+      <div id="drawerFichajes"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-primary" id="drawerBtnEdit">✏ Editar usuario</button>
+      <button class="btn-cancel" id="drawerBtnClose">Cerrar</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -388,9 +436,9 @@
           </tr></thead><tbody>${recientes.map(d => {
             const f = d.data();
             return `<tr>
-              <td>${f.nombre||f.email||'—'}</td>
-              <td style="color:var(--muted)">${f.departamento||'—'}</td>
-              <td><span class="pill pill-${f.tipo}">${f.tipo}</span></td>
+              <td><span style="cursor:pointer;color:var(--accent)" onclick="goToFichajesFiltered({nombre:'${esc(f.nombre||'')}',userId:'${f.userId||''}'})">${f.nombre||f.email||'—'}</span></td>
+              <td><span style="cursor:pointer;color:var(--muted)" onclick="goToFichajesFiltered({departamento:'${esc(f.departamento||'')}'})">${f.departamento||'—'}</span></td>
+              <td><span class="pill pill-${f.tipo}" style="cursor:pointer" onclick="goToFichajesFiltered({tipo:'${f.tipo}'})">${f.tipo}</span></td>
               <td style="color:var(--accent);font-weight:500">${fmt(f.timestamp)}</td>
             </tr>`;
           }).join('')}</tbody></table>`;
@@ -411,7 +459,7 @@
         </tr></thead><tbody>${snap.docs.map(d => {
           const u = d.data();
           return `<tr>
-            <td>${u.nombre||'—'}</td>
+            <td><span class="user-link" style="cursor:pointer;color:var(--accent)" onclick="openUserDrawerById('${d.id}')">${esc(u.nombre||'—')}</span></td>
             <td style="color:var(--muted)">${u.email}</td>
             <td style="color:var(--muted)">${u.empresa||'—'}</td>
             <td style="color:var(--muted)">${u.departamento||'—'}</td>
@@ -681,8 +729,184 @@
         }, err => console.error(err));
     }
 
+    // ── Escape helper for inline onclick attributes ───────────────────────────
+    function esc(str) {
+      return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    }
+
     // ── Carga inicial ─────────────────────────────────────────────────────────
     loadResumen();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  USER PROFILE DRAWER
+    // ─────────────────────────────────────────────────────────────────────────
+    async function openUserDrawerById(userId) {
+      const doc = await db.collection('usuarios').doc(userId).get();
+      if (doc.exists) openUserDrawer(userId, doc.data());
+    }
+
+    async function openUserDrawer(userId, userData) {
+      const initials = (userData.nombre || userData.email || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      document.getElementById('drawerAvatar').textContent = initials;
+      document.getElementById('drawerName').textContent   = userData.nombre || '—';
+      document.getElementById('drawerEmail').textContent  = userData.email  || '—';
+      const rolPill = userData.rol === 'admin' ? 'pill-admin' : 'pill-emp';
+      document.getElementById('drawerMeta').innerHTML =
+        (userData.empresa ? '<span>\uD83C\uDFE2 ' + userData.empresa + '</span> \xB7 ' : '') +
+        (userData.departamento ? '<span>\uD83D\uDCC2 ' + userData.departamento + '</span> \xB7 ' : '') +
+        '<span class="pill ' + rolPill + '" style="font-size:9px">' + (userData.rol || 'empleado') + '</span>';
+
+      document.getElementById('drawerStats').innerHTML = '<div class="dstat"><div class="dstat-label">Cargando...</div></div>';
+      document.getElementById('drawerFichajes').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+
+      document.getElementById('drawerBtnEdit').onclick = function() {
+        closeUserDrawer();
+        editingUserId = userId;
+        editUser(userId);
+      };
+
+      document.getElementById('drawerOverlay').classList.add('show');
+      document.getElementById('userDrawer').classList.add('show');
+
+      try {
+        const snap = await db.collection('fichajes')
+          .where('userId', '==', userId)
+          .orderBy('timestamp', 'desc')
+          .limit(50)
+          .get();
+
+        const fichajes = snap.docs.map(d => d.data());
+        const hoy = new Date(); hoy.setHours(0,0,0,0);
+        const mesInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+        const total   = fichajes.length;
+        const esteMes = fichajes.filter(f => f.timestamp && f.timestamp.toDate && f.timestamp.toDate() >= mesInicio).length;
+        const hNorm   = fichajes.reduce((s,f) => s + (f.horasNormales||0), 0);
+        const hExtra  = fichajes.reduce((s,f) => s + (f.horasExtra||0), 0);
+
+        document.getElementById('drawerStats').innerHTML =
+          '<div class="dstat"><div class="dstat-label">Total fichajes</div><div class="dstat-value c-accent">' + total + '</div></div>' +
+          '<div class="dstat"><div class="dstat-label">Este mes</div><div class="dstat-value c-accent">' + esteMes + '</div></div>' +
+          '<div class="dstat"><div class="dstat-label">Horas normales</div><div class="dstat-value c-success">' + hNorm.toFixed(1) + 'h</div></div>' +
+          '<div class="dstat"><div class="dstat-label">Horas extra</div><div class="dstat-value c-warn">' + hExtra.toFixed(1) + 'h</div></div>';
+
+        if (!fichajes.length) {
+          document.getElementById('drawerFichajes').innerHTML = '<div class="empty"><div class="empty-icon">\uD83D\uDD50</div>Sin fichajes registrados</div>';
+          return;
+        }
+
+        let rows = '';
+        fichajes.forEach(function(f) {
+          rows += '<tr>' +
+            '<td style="color:var(--muted)">' + (f.departamento||'—') + '</td>' +
+            '<td><span class="pill pill-' + f.tipo + '">' + f.tipo + '</span></td>' +
+            '<td style="color:var(--accent);font-size:11px">' + fmt(f.timestamp) + '</td>' +
+            '</tr>';
+        });
+        document.getElementById('drawerFichajes').innerHTML =
+          '<table><thead><tr><th>Departamento</th><th>Tipo</th><th>Fecha y hora</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      } catch(e) {
+        document.getElementById('drawerFichajes').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+      }
+    }
+
+    function closeUserDrawer() {
+      document.getElementById('drawerOverlay').classList.remove('show');
+      document.getElementById('userDrawer').classList.remove('show');
+    }
+
+    document.getElementById('drawerClose').addEventListener('click', closeUserDrawer);
+    document.getElementById('drawerBtnClose').addEventListener('click', closeUserDrawer);
+    document.getElementById('drawerOverlay').addEventListener('click', closeUserDrawer);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  FICHAJES FILTRADOS (desde Resumen)
+    // ─────────────────────────────────────────────────────────────────────────
+    function goToFichajesFiltered(filters) {
+      document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
+      document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+      document.querySelector('.nav-item[data-sec="fichajes"]').classList.add('active');
+      document.getElementById('sec-fichajes').classList.add('active');
+      if (resumenUnsub) { resumenUnsub(); resumenUnsub = null; }
+      loadFichajesFiltered(filters);
+    }
+
+    async function loadFichajesFiltered(filters) {
+      const container = document.getElementById('tablaFichajes');
+      container.innerHTML = '<div class="loading"><span class="spinner"></span>Filtrando...</div>';
+      if (fichajesUnsub) { fichajesUnsub(); fichajesUnsub = null; }
+
+      const labels = [];
+      if (filters.nombre) labels.push('\uD83D\uDC64 ' + filters.nombre);
+      if (filters.departamento) labels.push('\uD83C\uDFE2 ' + filters.departamento);
+      if (filters.tipo) labels.push('\uD83D\uDCCB ' + filters.tipo);
+
+      try {
+        let query = db.collection('fichajes').orderBy('timestamp','desc').limit(300);
+        if (filters.userId) {
+          query = db.collection('fichajes').where('userId','==',filters.userId).orderBy('timestamp','desc').limit(300);
+        } else if (filters.departamento) {
+          query = db.collection('fichajes').where('departamento','==',filters.departamento).orderBy('timestamp','desc').limit(300);
+        } else if (filters.tipo) {
+          query = db.collection('fichajes').where('tipo','==',filters.tipo).orderBy('timestamp','desc').limit(300);
+        }
+
+        const snap = await query.get();
+        let docs = snap.docs;
+
+        if (filters.nombre && !filters.userId) {
+          docs = docs.filter(function(d) {
+            return (d.data().nombre||'').toLowerCase().includes(filters.nombre.toLowerCase());
+          });
+        }
+
+        const bannerHtml = labels.length
+          ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 22px;background:rgba(0,229,255,.06);border-bottom:1px solid rgba(0,229,255,.15)">' +
+            '<span style="font-size:11px;color:var(--accent)">Filtro activo: ' + labels.join(' \xB7 ') + '</span>' +
+            '<button onclick="loadFichajes()" style="font-size:10px;padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--accent);cursor:pointer">\u2715 Limpiar</button>' +
+            '</div>'
+          : '';
+
+        if (!docs.length) {
+          container.innerHTML = bannerHtml + '<div class="empty"><div class="empty-icon">\uD83D\uDD50</div>No hay fichajes con ese filtro</div>';
+          return;
+        }
+
+        let rows = '';
+        docs.forEach(function(d) {
+          const f = d.data();
+          const jornada = f.duracionMin != null ? Math.floor(f.duracionMin/60) + 'h ' + (f.duracionMin%60) + 'm' : '—';
+          const hNorm   = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '—';
+          const hExtra  = f.horasExtra   != null ? f.horasExtra.toFixed(2)   + 'h' : '—';
+          let ubicacion = '—';
+          if (f.lat != null && f.lng != null) {
+            const dist = f.distanciaDept != null ? ' (' + Math.round(f.distanciaDept) + 'm)' : '';
+            ubicacion = '<a href="https://maps.google.com/?q=' + f.lat + ',' + f.lng + '" target="_blank" style="color:var(--accent)">\uD83D\uDCCD Maps' + dist + '</a>';
+          } else if (f.locError) {
+            ubicacion = '<span style="color:var(--muted);font-size:11px">' + f.locError + '</span>';
+          }
+          rows += '<tr>' +
+            '<td>' + (f.nombre||'—') + '</td>' +
+            '<td style="color:var(--muted)">' + (f.email||'—') + '</td>' +
+            '<td style="color:var(--muted)">' + (f.departamento||'—') + '</td>' +
+            '<td><span class="pill pill-' + f.tipo + '">' + f.tipo + '</span></td>' +
+            '<td style="color:var(--accent);letter-spacing:.5px">' + fmt(f.timestamp) + '</td>' +
+            '<td style="color:var(--muted)">' + jornada + '</td>' +
+            '<td style="color:var(--success)">' + hNorm + '</td>' +
+            '<td style="color:var(--warn)">' + hExtra + '</td>' +
+            '<td>' + ubicacion + '</td>' +
+            '</tr>';
+        });
+
+        container.innerHTML = bannerHtml +
+          '<table><thead><tr>' +
+          '<th>Nombre</th><th>Email</th><th>Departamento</th><th>Tipo</th>' +
+          '<th>Hora exacta del fichaje</th><th>Jornada</th><th>H. Normal</th><th>H. Extra</th><th>Ubicaci\xF3n</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>';
+      } catch(e) {
+        container.innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+      }
+    }
   </script>
 </body>
 </html>
