@@ -276,6 +276,7 @@ function showScanButton() {
 async function initScanner() {
   document.getElementById('scanPrompt').style.display = 'none';
   document.getElementById('reader').style.display = 'block';
+  document.getElementById('reader').innerHTML = '<div class="auto-msg"><span class="spinner"></span>Abriendo cámara...</div>';
   document.getElementById('card-sub-text').textContent = 'Apunta la cámara al código QR del departamento';
   document.getElementById('statusBox').className = 'status-box';
   document.getElementById('statusMsg').textContent = '';
@@ -286,6 +287,19 @@ async function initScanner() {
 
   if (scanner) { try { await scanner.stop(); } catch(_){} scanner = null; }
 
+  // Primero pedimos permiso de cámara explícitamente
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    stream.getTracks().forEach(t => t.stop()); // solo pedimos permiso, luego lo maneja Html5Qrcode
+  } catch(permErr) {
+    document.getElementById('reader').innerHTML = '';
+    document.getElementById('reader').style.display = 'none';
+    document.getElementById('scanPrompt').style.display = 'flex';
+    showError('Permiso de cámara denegado: ' + permErr.message);
+    return;
+  }
+
+  document.getElementById('reader').innerHTML = '';
   scanner = new Html5Qrcode('reader');
   try {
     await scanner.start(
@@ -295,7 +309,6 @@ async function initScanner() {
       () => {}
     );
   } catch(err) {
-    // Si no hay cámara trasera, intenta cualquier cámara
     try {
       await scanner.start(
         { facingMode: 'user' },
@@ -306,7 +319,7 @@ async function initScanner() {
     } catch(err2) {
       document.getElementById('reader').style.display = 'none';
       document.getElementById('scanPrompt').style.display = 'flex';
-      showError('No se pudo acceder a la cámara: ' + err2.message);
+      showError('Error al iniciar cámara: ' + err2.message + ' | ' + err2.name);
     }
   }
 }
