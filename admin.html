@@ -433,8 +433,8 @@
             const tipo   = f.tipo || '';
             const userId = f.userId || '';
             return `<tr>
-              <td><span class="resumen-link" data-filter-type="user" data-nombre="${escAttr(nombre)}" data-userid="${escAttr(userId)}" style="cursor:pointer;color:var(--accent);text-decoration:underline dotted">${nombre}</span></td>
-              <td><span class="resumen-link" data-filter-type="dept" data-departamento="${escAttr(dept)}" style="cursor:pointer;color:var(--muted);text-decoration:underline dotted">${dept}</span></td>
+              <td><span class="resumen-link" data-filter-type="user" data-nombre="${escAttr(nombre)}" data-userid="${escAttr(userId)}" style="cursor:pointer;color:var(--accent);text-decoration:none">${nombre}</span></td>
+              <td><span class="resumen-link" data-filter-type="dept" data-departamento="${escAttr(dept)}" style="cursor:pointer;color:var(--muted);text-decoration:none">${dept}</span></td>
               <td><span class="resumen-link pill pill-${tipo}" data-filter-type="tipo" data-tipo="${escAttr(tipo)}" style="cursor:pointer">${tipo}</span></td>
               <td style="color:var(--accent);font-weight:500">${fmt(f.timestamp)}</td>
             </tr>`;
