@@ -9,20 +9,15 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a; --border: #2a2f45;
-      --accent: #3b82f6; --accent-hover: #2563eb; --text: #f8fafc;
-      --text-secondary: #94a3b8; --muted: #475569;
-      --danger: #ef4444; --success: #22c55e; --warn: #f59e0b;
+      --bg: #0d0d0d; --surface: #161616; --surface2: #1e1e1e; --border: #2a2a2a;
+      --border2: #333333; --accent: #e2e2e2; --text: #f0f0f0;
+      --text-secondary: #a0a0a0; --muted: #666666;
+      --danger: #c0392b; --success: #2d7a4f; --warn: #8a6800;
     }
     body {
       font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
       min-height: 100vh; display: flex; flex-direction: column; align-items: center;
       justify-content: center; padding: 80px 20px 20px;
-    }
-    body::after {
-      content: ''; position: fixed; width: 600px; height: 600px;
-      background: radial-gradient(circle,#3b82f620 0%,transparent 70%);
-      top: 50%; left: 50%; transform: translate(-50%,-60%); pointer-events: none;
     }
     .topbar {
       position: fixed; top: 0; left: 0; right: 0; height: 56px;
@@ -33,8 +28,8 @@
     .logo { font-size: 18px; font-weight: 700; color: var(--text); }
     .logo span { color: var(--accent); }
     .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-secondary); }
-    .btn-logout { padding: 6px 14px; background: transparent; color: var(--danger); border: 1px solid rgba(239,68,68,.3); border-radius: 7px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .2s; }
-    .btn-logout:hover { background: rgba(239,68,68,.1); border-color: var(--danger); }
+    .btn-logout { padding: 6px 14px; background: transparent; color: var(--danger); border: 1px solid rgba(192,57,43,.4); border-radius: 7px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .2s; }
+    .btn-logout:hover { background: rgba(192,57,43,.08); border-color: var(--danger); }
     .card {
       position: relative; width: 100%; max-width: 420px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -46,17 +41,17 @@
     .card-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 22px; }
     #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
     .status-box { margin-top: 18px; padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.6; display: none; }
-    .status-box.ok  { display: block; background: rgba(34,197,94,.08);  border: 1px solid rgba(34,197,94,.25); color: var(--success); }
-    .status-box.err { display: block; background: rgba(239,68,68,.08);  border: 1px solid rgba(239,68,68,.25);  color: var(--danger); }
-    .status-box.warn { display: block; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: var(--warn); }
+    .status-box.ok  { display: block; background: rgba(45,122,79,.08);  border: 1px solid rgba(45,122,79,.2); color: #6ab88a; }
+    .status-box.err { display: block; background: rgba(192,57,43,.08);  border: 1px solid rgba(192,57,43,.2);  color: #c0392b; }
+    .status-box.warn { display: block; background: rgba(138,104,0,.08); border: 1px solid rgba(138,104,0,.2); color: #b8960a; }
     .fichaje-hora { font-size: 22px; font-weight: 700; color: var(--accent); margin-top: 6px; letter-spacing: 1px; }
     .fichaje-fecha { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
     .fichaje-detail { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.7; }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin-right: 8px; vertical-align: middle; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--text-secondary); border-radius: 50%; animation: spin .7s linear infinite; margin-right: 8px; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .auto-msg { padding: 28px 16px; text-align: center; font-size: 13px; color: var(--text-secondary); }
-    .btn-rescan { width: 100%; margin-top: 14px; padding: 12px; background: transparent; color: var(--accent); border: 1px solid rgba(59,130,246,.35); border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; display: none; }
-    .btn-rescan:hover { background: rgba(59,130,246,.08); border-color: var(--accent); }
+    .btn-rescan { width: 100%; margin-top: 14px; padding: 12px; background: transparent; color: #a0a0a0; border: 1px solid #2a2a2a; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; display: none; }
+    .btn-rescan:hover { background: rgba(255,255,255,.04); border-color: #555; }
     .btn-rescan.show { display: block; }
   </style>
 </head>
@@ -160,7 +155,7 @@
       document.getElementById('card-title-text').textContent = 'Fichaje Automático';
       document.getElementById('card-sub-text').textContent   = 'Validando ubicación y registrando fichaje...';
 
-      setReaderMsg('<span class="spinner"></span>📍 Obteniendo tu ubicación...');
+      setReaderMsg('<span class="spinner"></span>Obteniendo tu ubicación...');
 
       const ahora = new Date();
       const horaStr  = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -174,17 +169,17 @@
       } catch(geoErr) {
         locError = geoErr.message;
         setReaderMsg('');
-        showError('❌ Debes permitir el acceso a tu ubicación para fichar. ' + geoErr.message);
+        showError('Debes permitir el acceso a tu ubicación para fichar. ' + geoErr.message);
         return;
       }
 
-      setReaderMsg('<span class="spinner"></span>🏢 Verificando departamento...');
+      setReaderMsg('<span class="spinner"></span>Verificando departamento...');
 
       try {
         // 2. Verificar departamento
         const deptDoc = await db.collection('departamentos').doc(deptId).get();
         if (!deptDoc.exists) {
-          setReaderMsg(''); showError('❌ QR no válido o departamento eliminado'); return;
+          setReaderMsg(''); showError('QR no válido o departamento eliminado'); return;
         }
         const dept = deptDoc.data();
 
@@ -193,11 +188,11 @@
         if (dept.lat != null && dept.lng != null) {
           distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
           if (distanciaDept > MAX_DISTANCIA_METROS) {
-            setReaderMsg(''); showError(`❌ No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
+            setReaderMsg(''); showError(`No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
           }
         }
 
-        setReaderMsg('<span class="spinner"></span>💾 Guardando fichaje...');
+        setReaderMsg('<span class="spinner"></span>Guardando fichaje...');
 
         // 4. Determinar tipo entrada/salida
         const ultimoSnap = await db.collection('fichajes')
@@ -250,26 +245,26 @@
         const isNoCoords = dept.lat == null || dept.lng == null;
         statusBox.className = isNoCoords ? 'status-box warn' : 'status-box ok';
 
-        let msgParts = [`✅ Fichaje de ${tipo} registrado · ${dept.nombre}`];
-        if (isNoCoords) msgParts = [`⚠️ Fichaje de ${tipo} registrado sin validación de proximidad · ${dept.nombre}`];
+        let msgParts = [`Fichaje de ${tipo} registrado · ${dept.nombre}`];
+        if (isNoCoords) msgParts = [`Fichaje de ${tipo} registrado sin validación de proximidad · ${dept.nombre}`];
 
         document.getElementById('statusMsg').textContent = msgParts[0];
         document.getElementById('fichajeHora').textContent = horaStr;
         document.getElementById('fichajeDate').textContent = fechaStr;
 
         let details = [];
-        if (distanciaDept != null) details.push(`📍 a ${distanciaDept}m del departamento`);
+        if (distanciaDept != null) details.push(`a ${distanciaDept}m del departamento`);
         if (tipo === 'salida' && duracionMin != null) {
           const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
-          details.push(`🕐 Jornada: ${hh}h ${mm}m`);
-          if (horasNormales != null) details.push(`✔ Normales: ${horasNormales.toFixed(2)}h`);
-          if (horasExtra != null && horasExtra > 0) details.push(`⚡ Extra: ${horasExtra.toFixed(2)}h`);
+          details.push(`Jornada: ${hh}h ${mm}m`);
+          if (horasNormales != null) details.push(`Normales: ${horasNormales.toFixed(2)}h`);
+          if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${horasExtra.toFixed(2)}h`);
         }
         document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
 
       } catch(err) {
         console.error(err);
-        setReaderMsg(''); showError('❌ Error al guardar el fichaje: ' + err.message);
+        setReaderMsg(''); showError('Error al guardar el fichaje: ' + err.message);
       }
 
       document.getElementById('btnRescan').classList.add('show');
@@ -329,14 +324,14 @@
 
       try {
         const deptDoc = await db.collection('departamentos').doc(deptId).get();
-        if (!deptDoc.exists) { showError('❌ QR no válido o departamento eliminado'); return; }
+        if (!deptDoc.exists) { showError('QR no válido o departamento eliminado'); return; }
         const dept = deptDoc.data();
 
         let distanciaDept = null;
         if (empLat != null && dept.lat != null && dept.lng != null) {
           distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
           if (distanciaDept > MAX_DISTANCIA_METROS) {
-            showError(`❌ No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
+            showError(`No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
           }
         }
 
@@ -381,22 +376,22 @@
 
         const statusBox = document.getElementById('statusBox');
         statusBox.className = 'status-box ok';
-        document.getElementById('statusMsg').textContent = `✅ Fichaje de ${tipo} registrado · ${dept.nombre}`;
+        document.getElementById('statusMsg').textContent = `Fichaje de ${tipo} registrado · ${dept.nombre}`;
         document.getElementById('fichajeHora').textContent = horaStr;
         document.getElementById('fichajeDate').textContent = fechaStr;
 
         let details = [];
-        if (distanciaDept != null) details.push(`📍 a ${distanciaDept}m del departamento`);
+        if (distanciaDept != null) details.push(`a ${distanciaDept}m del departamento`);
         if (tipo === 'salida' && duracionMin != null) {
           const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
-          details.push(`🕐 Jornada: ${hh}h ${mm}m`);
-          if (horasNormales != null) details.push(`✔ Normales: ${horasNormales.toFixed(2)}h`);
-          if (horasExtra != null && horasExtra > 0) details.push(`⚡ Extra: ${horasExtra.toFixed(2)}h`);
+          details.push(`Jornada: ${hh}h ${mm}m`);
+          if (horasNormales != null) details.push(`Normales: ${horasNormales.toFixed(2)}h`);
+          if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${horasExtra.toFixed(2)}h`);
         }
         document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
 
       } catch(err) {
-        console.error(err); showError('❌ Error al guardar el fichaje: ' + err.message);
+        console.error(err); showError('Error al guardar el fichaje: ' + err.message);
       }
     }
 
