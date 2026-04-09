@@ -39,7 +39,7 @@ body {
 @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
 .card-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .card-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 22px; }
-#reader { width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
+#reader { width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); display: none; }
 .status-box { margin-top: 18px; padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.6; display: none; }
 .status-box.ok { display: block; background: rgba(45,122,79,.08); border: 1px solid rgba(45,122,79,.2); color: #6ab88a; }
 .status-box.err { display: block; background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.2); color: #c0392b; }
@@ -57,13 +57,10 @@ body {
 /* ── Botón de inicio de escáner ── */
 .scan-prompt {
   display: flex; flex-direction: column; align-items: center;
-  gap: 16px; padding: 32px 16px; text-align: center;
-}
-.scan-icon {
-  font-size: 48px; line-height: 1;
+  gap: 16px; padding: 8px 0 4px; text-align: center;
 }
 .scan-prompt-text {
-  font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+  font-size: 13px; color: var(--text-secondary); line-height: 1.6;
 }
 .btn-start-scan {
   width: 100%; padding: 14px; background: #e2e2e2; color: #0d0d0d;
@@ -87,6 +84,12 @@ body {
 <div class="card">
   <div class="card-title" id="card-title-text">Escáner de Fichaje</div>
   <div class="card-sub" id="card-sub-text">Apunta la cámara al código QR del departamento</div>
+  <!-- Prompt con botón, se muestra/oculta según estado -->
+  <div id="scanPrompt" class="scan-prompt" style="display:none">
+    <div class="scan-prompt-text">Escanea el código QR de tu departamento para registrar el fichaje.</div>
+    <button class="btn-start-scan" id="btnIniciarScan">Abrir cámara y escanear</button>
+  </div>
+  <!-- El div del scanner, siempre presente pero vacío hasta que se usa -->
   <div id="reader"></div>
   <div class="status-box" id="statusBox">
     <div id="statusMsg"></div>
@@ -118,6 +121,8 @@ if (!firebase.apps.length) {
   });
 }
 const db = firebase.firestore();
+
+document.getElementById('btnIniciarScan').addEventListener('click', initScanner);
 
 document.getElementById('btnLogout').addEventListener('click', () => {
   localStorage.removeItem('user'); location.href = 'index.html';
@@ -264,16 +269,13 @@ let scanner = null;
 function showScanButton() {
   document.getElementById('card-title-text').textContent = 'Escáner de Fichaje';
   document.getElementById('card-sub-text').textContent = 'Pulsa el botón para escanear el código QR';
-  document.getElementById('reader').innerHTML = `
-    <div class="scan-prompt">
-      <div class="scan-icon">📷</div>
-      <div class="scan-prompt-text">Necesitas escanear el QR de tu departamento para registrar el fichaje.</div>
-      <button class="btn-start-scan" id="btnIniciarScan">Abrir cámara y escanear</button>
-    </div>`;
-  document.getElementById('btnIniciarScan').addEventListener('click', initScanner);
+  document.getElementById('scanPrompt').style.display = 'flex';
+  document.getElementById('reader').style.display = 'none';
 }
 
 function initScanner() {
+  document.getElementById('scanPrompt').style.display = 'none';
+  document.getElementById('reader').style.display = 'block';
   document.getElementById('card-sub-text').textContent = 'Apunta la cámara al código QR del departamento';
   document.getElementById('statusBox').className = 'status-box';
   document.getElementById('statusMsg').textContent = '';
@@ -281,7 +283,6 @@ function initScanner() {
   document.getElementById('fichajeDate').textContent = '';
   document.getElementById('fichajeDetail').textContent = '';
   document.getElementById('btnRescan').classList.remove('show');
-  document.getElementById('reader').innerHTML = '';
 
   if (scanner) { try { scanner.clear(); } catch(_){} }
   scanner = new Html5QrcodeScanner('reader', {
@@ -389,6 +390,7 @@ document.getElementById('btnRescan').addEventListener('click', () => {
   } else {
     document.getElementById('statusBox').className = 'status-box';
     document.getElementById('btnRescan').classList.remove('show');
+    if (scanner) { try { scanner.clear(); } catch(_){} scanner = null; }
     showScanButton();
   }
 });
