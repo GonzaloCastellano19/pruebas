@@ -273,7 +273,7 @@ function showScanButton() {
   document.getElementById('reader').style.display = 'none';
 }
 
-function initScanner() {
+async function initScanner() {
   document.getElementById('scanPrompt').style.display = 'none';
   document.getElementById('reader').style.display = 'block';
   document.getElementById('card-sub-text').textContent = 'Apunta la cámara al código QR del departamento';
@@ -284,18 +284,35 @@ function initScanner() {
   document.getElementById('fichajeDetail').textContent = '';
   document.getElementById('btnRescan').classList.remove('show');
 
-  if (scanner) { try { scanner.clear(); } catch(_){} }
-  scanner = new Html5QrcodeScanner('reader', {
-    fps: 10,
-    qrbox: { width: 240, height: 240 },
-    rememberLastUsedCamera: true,
-    showTorchButtonIfSupported: true
-  }, false);
-  scanner.render(onScanSuccess, () => {});
+  if (scanner) { try { await scanner.stop(); } catch(_){} scanner = null; }
+
+  scanner = new Html5Qrcode('reader');
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      onScanSuccess,
+      () => {}
+    );
+  } catch(err) {
+    // Si no hay cámara trasera, intenta cualquier cámara
+    try {
+      await scanner.start(
+        { facingMode: 'user' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        onScanSuccess,
+        () => {}
+      );
+    } catch(err2) {
+      document.getElementById('reader').style.display = 'none';
+      document.getElementById('scanPrompt').style.display = 'flex';
+      showError('No se pudo acceder a la cámara: ' + err2.message);
+    }
+  }
 }
 
 async function onScanSuccess(scannedText) {
-  try { await scanner.clear(); } catch(_) {}
+  try { await scanner.stop(); } catch(_) {}
 
   let deptId = scannedText;
   try {
@@ -381,7 +398,7 @@ async function procesarFichajeConId(deptId) {
 }
 
 // ── Botón "Escanear de nuevo" ─────────────────────────────────────────────
-document.getElementById('btnRescan').addEventListener('click', () => {
+document.getElementById('btnRescan').addEventListener('click', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const deptId = urlParams.get('dept') || sessionStorage.getItem('pendingDept');
   if (deptId) {
@@ -390,7 +407,7 @@ document.getElementById('btnRescan').addEventListener('click', () => {
   } else {
     document.getElementById('statusBox').className = 'status-box';
     document.getElementById('btnRescan').classList.remove('show');
-    if (scanner) { try { scanner.clear(); } catch(_){} scanner = null; }
+    if (scanner) { try { await scanner.stop(); } catch(_){} scanner = null; }
     showScanButton();
   }
 });
