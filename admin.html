@@ -10,10 +10,10 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a; --border: #2a2f45;
-      --accent: #3b82f6; --accent-hover: #2563eb; --accent2: #6366f1;
-      --text: #f8fafc; --text-secondary: #94a3b8; --muted: #475569;
-      --danger: #ef4444; --success: #22c55e; --warn: #f59e0b;
+      --bg: #0d0d0d; --surface: #161616; --surface2: #1e1e1e; --border: #2a2a2a;
+      --border2: #333333; --accent: #e2e2e2; --text: #f0f0f0;
+      --text-secondary: #a0a0a0; --muted: #666666;
+      --danger: #c0392b; --success: #2d7a4f; --warn: #8a6800;
     }
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -28,9 +28,9 @@
     .logo span { color: var(--accent); }
     .logo small { font-size: 12px; color: var(--text-secondary); margin-left: 10px; font-weight: 400; }
     .topbar-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-secondary); }
-    .badge { padding: 3px 10px; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.3); border-radius: 20px; color: var(--accent); font-size: 11px; font-weight: 500; }
-    .btn-logout { padding: 6px 14px; background: transparent; color: var(--danger); border: 1px solid rgba(239,68,68,.3); border-radius: 7px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .2s; }
-    .btn-logout:hover { background: rgba(239,68,68,.1); border-color: var(--danger); }
+    .badge { padding: 3px 10px; background: rgba(226,226,226,.08); border: 1px solid #333; border-radius: 20px; color: #a0a0a0; font-size: 11px; font-weight: 500; }
+    .btn-logout { padding: 6px 14px; background: transparent; color: var(--danger); border: 1px solid rgba(192,57,43,.4); border-radius: 7px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .2s; }
+    .btn-logout:hover { background: rgba(192,57,43,.08); border-color: var(--danger); }
 
     /* ── Layout ── */
     .layout { display: flex; padding-top: 58px; min-height: 100vh; }
@@ -40,7 +40,7 @@
     .nav-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 14px 20px 6px; font-weight: 500; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: background .15s, color .15s; border-left: 3px solid transparent; }
     .nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
-    .nav-item.active { border-left-color: var(--accent); color: var(--accent); background: rgba(59,130,246,.06); }
+    .nav-item.active { border-left: 2px solid #e2e2e2; color: #f0f0f0; background: rgba(255,255,255,.04); }
     .nav-icon { font-size: 15px; width: 20px; text-align: center; }
 
     /* ── Main ── */
@@ -75,22 +75,22 @@
     tr:hover td { background: rgba(255,255,255,.02); }
 
     .pill { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 500; }
-    .pill-admin   { background: rgba(99,102,241,.15); border: 1px solid rgba(99,102,241,.3); color: #a5b4fc; }
-    .pill-emp     { background: rgba(59,130,246,.1);  border: 1px solid rgba(59,130,246,.25);  color: var(--accent); }
-    .pill-entrada { background: rgba(34,197,94,.1);   border: 1px solid rgba(34,197,94,.25); color: var(--success); }
-    .pill-salida  { background: rgba(245,158,11,.1);  border: 1px solid rgba(245,158,11,.25); color: var(--warn); }
+    .pill-admin   { background: rgba(226,226,226,.08); border: 1px solid #333; color: #a0a0a0; }
+    .pill-emp     { background: rgba(226,226,226,.06); border: 1px solid #2a2a2a; color: #a0a0a0; }
+    .pill-entrada { background: rgba(45,122,79,.15);   border: 1px solid rgba(45,122,79,.3);   color: #5aad7e; }
+    .pill-salida  { background: rgba(90,90,90,.15);    border: 1px solid #333;                  color: #a0a0a0; }
 
     .btn-act { padding: 5px 11px; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; border: 1px solid transparent; }
-    .btn-edit { background: transparent; border-color: rgba(59,130,246,.35); color: var(--accent); margin-right: 5px; }
-    .btn-edit:hover { background: rgba(59,130,246,.1); }
-    .btn-del  { background: transparent; border-color: rgba(239,68,68,.35); color: var(--danger); }
-    .btn-del:hover  { background: rgba(239,68,68,.1); }
-    .btn-qr   { background: transparent; border-color: rgba(99,102,241,.35); color: #a5b4fc; margin-right: 5px; }
-    .btn-qr:hover   { background: rgba(99,102,241,.1); }
+    .btn-edit { background: transparent; border-color: rgba(226,226,226,.2); color: var(--accent); margin-right: 5px; }
+    .btn-edit:hover { background: rgba(226,226,226,.06); }
+    .btn-del  { background: transparent; border-color: rgba(192,57,43,.4); color: var(--danger); }
+    .btn-del:hover  { background: rgba(192,57,43,.08); }
+    .btn-qr   { background: transparent; border-color: rgba(226,226,226,.15); color: #a0a0a0; margin-right: 5px; }
+    .btn-qr:hover   { background: rgba(226,226,226,.04); }
 
     /* ── Primary btn ── */
-    .btn-primary { padding: 9px 18px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; white-space: nowrap; }
-    .btn-primary:hover { background: var(--accent-hover); } .btn-primary:active { transform: scale(.97); }
+    .btn-primary { padding: 9px 18px; background: #e2e2e2; color: #0d0d0d; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; white-space: nowrap; }
+    .btn-primary:hover { background: #cacaca; } .btn-primary:active { transform: scale(.97); }
 
     /* ── Grid de QRs ── */
     .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
@@ -99,7 +99,7 @@
       padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 14px;
       animation: fadeUp .4s ease both; transition: border-color .2s;
     }
-    .qr-card:hover { border-color: rgba(99,102,241,.4); }
+    .qr-card:hover { border-color: #333333; }
     .qr-dept { font-size: 15px; font-weight: 600; color: var(--text); text-align: center; }
     .qr-empresa { font-size: 11px; color: var(--text-secondary); }
     .qr-loc { font-size: 11px; color: var(--text-secondary); }
@@ -107,14 +107,14 @@
     .qr-box canvas, .qr-box img { display: block; }
     .qr-actions { display: flex; gap: 8px; width: 100%; }
     .qr-actions button { flex: 1; }
-    .btn-download { padding: 8px; background: transparent; border: 1px solid rgba(99,102,241,.35); border-radius: 7px; color: #a5b4fc; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; text-align: center; }
-    .btn-download:hover { background: rgba(99,102,241,.1); }
-    .btn-del-dept { padding: 8px; background: transparent; border: 1px solid rgba(239,68,68,.3); border-radius: 7px; color: var(--danger); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; text-align: center; }
-    .btn-del-dept:hover { background: rgba(239,68,68,.1); }
+    .btn-download { padding: 8px; background: transparent; border: 1px solid rgba(226,226,226,.15); border-radius: 7px; color: #a0a0a0; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; text-align: center; }
+    .btn-download:hover { background: rgba(226,226,226,.04); }
+    .btn-del-dept { padding: 8px; background: transparent; border: 1px solid rgba(192,57,43,.4); border-radius: 7px; color: var(--danger); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; text-align: center; }
+    .btn-del-dept:hover { background: rgba(192,57,43,.08); }
 
     /* ── Fichajes en tiempo real: badge nuevo ── */
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .live-dot { display: inline-block; width: 7px; height: 7px; background: var(--success); border-radius: 50%; margin-right: 7px; animation: pulse 2s infinite; }
+    .live-dot { display: inline-block; width: 7px; height: 7px; background: #5aad7e; border-radius: 50%; margin-right: 7px; animation: pulse 2s infinite; }
 
     /* ── Modal ── */
     .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
@@ -124,13 +124,13 @@
     .field { margin-bottom: 13px; }
     .field label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
     .field input, .field select { width: 100%; padding: 11px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px; outline: none; transition: border-color .2s; }
-    .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+    .field input:focus, .field select:focus { border-color: #555; box-shadow: 0 0 0 2px rgba(226,226,226,.08); }
     .field select option { background: var(--surface); }
     .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
     .modal-actions .btn-primary { flex: 1; }
     .btn-cancel { flex: 1; padding: 9px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color .2s, color .2s; }
     .btn-cancel:hover { border-color: var(--text); color: var(--text); }
-    .modal-err { margin-top: 10px; padding: 9px 12px; background: rgba(239,68,68,.08); border-left: 3px solid var(--danger); border-radius: 6px; color: var(--danger); font-size: 12px; display: none; }
+    .modal-err { margin-top: 10px; padding: 9px 12px; background: rgba(192,57,43,.08); border-left: 3px solid var(--danger); border-radius: 6px; color: var(--danger); font-size: 12px; display: none; }
     .modal-err.show { display: block; }
 
     /* ── QR Modal (vista grande) ── */
@@ -147,8 +147,9 @@
     /* ── Toast ── */
     .toast { position: fixed; bottom: 26px; right: 26px; padding: 11px 18px; border-radius: 8px; font-size: 13px; z-index: 999; display: none; }
     .toast.show { display: block; animation: fadeUp .3s ease both; }
-    .toast.ok  { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: var(--success); }
-    .toast.err { background: rgba(239,68,68,.12);  border: 1px solid rgba(239,68,68,.35);  color: var(--danger); }
+    .toast.ok  { background: #1e1e1e; border-left: 3px solid #2d7a4f; color: #f0f0f0; }
+    .toast.err { background: #1e1e1e; border-left: 3px solid #c0392b; color: #f0f0f0; }
+    .toast.warn { background: #1e1e1e; border-left: 3px solid #8a6800; color: #f0f0f0; }
 
     @media(max-width:768px){ .sidebar{display:none} .main{margin-left:0;padding:18px} }
 
@@ -158,7 +159,7 @@
     .drawer { position:fixed; top:0; right:0; bottom:0; width:480px; max-width:95vw; background:var(--surface); border-left:1px solid var(--border); z-index:301; overflow-y:auto; transform:translateX(100%); transition:transform .3s ease; display:flex; flex-direction:column; }
     .drawer.show { transform:translateX(0); }
     .drawer-header { padding:28px 28px 20px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-    .drawer-avatar { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; color:white; flex-shrink:0; }
+    .drawer-avatar { width:56px; height:56px; border-radius:50%; background: #2a2a2a; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; color:var(--text); flex-shrink:0; }
     .drawer-info { flex:1; }
     .drawer-name { font-size:18px; font-weight:700; color:var(--text); margin-bottom:4px; }
     .drawer-email { font-size:13px; color:var(--text-secondary); margin-bottom:2px; }
@@ -191,11 +192,11 @@
   <div class="layout">
     <nav class="sidebar">
       <div class="nav-label">Panel</div>
-      <div class="nav-item active" data-sec="resumen"><span class="nav-icon">📊</span> Resumen</div>
+      <div class="nav-item active" data-sec="resumen">Resumen</div>
       <div class="nav-label">Gestión</div>
-      <div class="nav-item" data-sec="usuarios"><span class="nav-icon">👤</span> Usuarios</div>
-      <div class="nav-item" data-sec="departamentos"><span class="nav-icon">🏢</span> Departamentos & QR</div>
-      <div class="nav-item" data-sec="fichajes"><span class="nav-icon">🕐</span> Fichajes</div>
+      <div class="nav-item" data-sec="usuarios">Usuarios</div>
+      <div class="nav-item" data-sec="departamentos">Departamentos</div>
+      <div class="nav-item" data-sec="fichajes">Fichajes</div>
     </nav>
 
     <main class="main">
@@ -278,7 +279,7 @@
       <div class="field"><label>Empresa</label><input type="text" id="fDeptEmpresa" placeholder="Mi Empresa SL"></div>
       <div class="field"><label>Latitud (opcional)</label><input type="number" step="any" id="fDeptLat" placeholder="Ej: 40.4168"></div>
       <div class="field"><label>Longitud (opcional)</label><input type="number" step="any" id="fDeptLng" placeholder="Ej: -3.7038"></div>
-      <button type="button" id="btnUsarUbicacion" style="width:100%;margin-bottom:12px;padding:9px 14px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:9px;color:var(--accent);font-family:'DM Mono',monospace;font-size:12px;cursor:pointer;transition:background .2s;letter-spacing:.5px;">📍 Usar mi ubicación actual</button>
+      <button type="button" id="btnUsarUbicacion" style="width:100%;margin-bottom:12px;padding:9px 14px;background:transparent;border:1px solid #2a2a2a;border-radius:9px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;transition:background .2s;">Usar mi ubicación actual</button>
       <div class="modal-err" id="modalDeptErr"></div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btnCancelDept">Cancelar</button>
@@ -295,7 +296,7 @@
       <div class="qr-modal-info" id="qrModalInfo"></div>
       <div class="modal-actions" style="margin-top:20px">
         <button class="btn-cancel" id="btnCancelQR">Cerrar</button>
-        <button class="btn-primary" id="btnDescargaQR">⬇ Descargar PNG</button>
+        <button class="btn-primary" id="btnDescargaQR">Descargar PNG</button>
       </div>
     </div>
   </div>
@@ -310,7 +311,7 @@
         <div class="drawer-email" id="drawerEmail"></div>
         <div class="drawer-meta" id="drawerMeta"></div>
       </div>
-      <button class="drawer-close" id="drawerClose">✕</button>
+      <button class="drawer-close" id="drawerClose">&times;</button>
     </div>
     <div class="drawer-stats" id="drawerStats"></div>
     <div class="drawer-section-title">Historial de fichajes</div>
@@ -318,7 +319,7 @@
       <div id="drawerFichajes"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
     </div>
     <div class="drawer-footer">
-      <button class="btn-primary" id="drawerBtnEdit">✏ Editar usuario</button>
+      <button class="btn-primary" id="drawerBtnEdit">Editar</button>
       <button class="btn-cancel" id="drawerBtnClose">Cerrar</button>
     </div>
   </div>
@@ -422,7 +423,7 @@
 
           const recientes = fSnap.docs.slice(0,10);
           if (!recientes.length) {
-            document.getElementById('recentFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
+            document.getElementById('recentFichajes').innerHTML = '<div class="empty">No hay fichajes aún</div>';
             return;
           }
           const tbody = recientes.map(d => {
@@ -456,7 +457,7 @@
       document.getElementById('tablaUsuarios').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
       try {
         const snap = await db.collection('usuarios').get();
-        if (snap.empty) { document.getElementById('tablaUsuarios').innerHTML = '<div class="empty"><div class="empty-icon">👤</div>Sin usuarios</div>'; return; }
+        if (snap.empty) { document.getElementById('tablaUsuarios').innerHTML = '<div class="empty">Sin usuarios</div>'; return; }
         document.getElementById('tablaUsuarios').innerHTML = `<table><thead><tr>
           <th>Nombre</th><th>Email</th><th>Empresa</th><th>Departamento</th><th>Rol</th><th>Acciones</th>
         </tr></thead><tbody>${snap.docs.map(d => {
@@ -526,12 +527,12 @@
 
         if (editingUserId) {
           await db.collection('usuarios').doc(editingUserId).update(datos);
-          toast('✅ Usuario actualizado');
+          toast('Usuario actualizado');
         } else {
           const check = await db.collection('usuarios').where('email','==',email).get();
           if (!check.empty) { errEl.textContent = 'Ya existe ese email'; errEl.classList.add('show'); btn.disabled=false; btn.textContent='Guardar'; return; }
           await db.collection('usuarios').add(datos);
-          toast('✅ Usuario creado');
+          toast('Usuario creado');
         }
         document.getElementById('ovUsuario').classList.remove('show');
         loadUsuarios(); loadResumen();
@@ -546,7 +547,7 @@
     async function delUser(id, nombre) {
       if (!confirm(`¿Eliminar "${nombre}"?`)) return;
       await db.collection('usuarios').doc(id).delete();
-      toast('🗑️ Usuario eliminado'); loadUsuarios(); loadResumen();
+      toast('Usuario eliminado'); loadUsuarios(); loadResumen();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -557,7 +558,7 @@
       try {
         const snap = await db.collection('departamentos').get();
         if (snap.empty) {
-          document.getElementById('qrGrid').innerHTML = '<div class="empty"><div class="empty-icon">🏢</div>Sin departamentos. Crea el primero.</div>';
+          document.getElementById('qrGrid').innerHTML = '<div class="empty">Sin departamentos. Crea el primero.</div>';
           return;
         }
         document.getElementById('qrGrid').innerHTML = '';
@@ -573,8 +574,8 @@
         <div class="qr-empresa">${data.empresa||''}</div>
         <div class="qr-box" id="qrbox-${id}"></div>
         <div class="qr-actions">
-          <button class="btn-download" onclick="verQR('${id}','${data.nombre}','${data.empresa||''}')">🔍 Ver / Descargar</button>
-          <button class="btn-del-dept" onclick="delDept('${id}','${data.nombre}')">🗑 Eliminar</button>
+          <button class="btn-download" onclick="verQR('${id}','${data.nombre}','${data.empresa||''}')">Ver QR</button>
+          <button class="btn-del-dept" onclick="delDept('${id}','${data.nombre}')">Eliminar</button>
         </div>`;
       document.getElementById('qrGrid').appendChild(card);
 
@@ -601,10 +602,10 @@
     // ── Botón "Usar mi ubicación actual" ──────────────────────────────────────
     document.getElementById('btnUsarUbicacion').addEventListener('click', function() {
       const btn = this;
-      btn.textContent = '⏳ Obteniendo ubicación...';
+      btn.textContent = 'Obteniendo ubicación...';
       btn.disabled = true;
       if (!navigator.geolocation) {
-        btn.textContent = '❌ Geolocalización no disponible';
+        btn.textContent = 'Geolocalización no disponible';
         btn.disabled = false;
         return;
       }
@@ -612,14 +613,14 @@
         function(pos) {
           document.getElementById('fDeptLat').value = pos.coords.latitude.toFixed(6);
           document.getElementById('fDeptLng').value = pos.coords.longitude.toFixed(6);
-          btn.textContent = '✅ Ubicación capturada';
+          btn.textContent = 'Ubicación capturada';
           btn.disabled = false;
-          setTimeout(() => { btn.textContent = '📍 Usar mi ubicación actual'; }, 3000);
+          setTimeout(() => { btn.textContent = 'Usar mi ubicación actual'; }, 3000);
         },
         function(err) {
-          btn.textContent = '❌ ' + (err.code === 1 ? 'Permiso denegado' : 'Error de ubicación');
+          btn.textContent = err.code === 1 ? 'Permiso denegado' : 'Error de ubicación';
           btn.disabled = false;
-          setTimeout(() => { btn.textContent = '📍 Usar mi ubicación actual'; }, 3000);
+          setTimeout(() => { btn.textContent = 'Usar mi ubicación actual'; }, 3000);
         },
         { timeout: 10000, maximumAge: 0 }
       );
@@ -641,7 +642,7 @@
       btn.disabled = true; btn.textContent = 'Creando...';
       try {
         await db.collection('departamentos').add({ nombre, empresa, lat: latDept, lng: lngDept, creadoEn: firebase.firestore.FieldValue.serverTimestamp() });
-        toast('✅ Departamento creado y QR generado');
+        toast('Departamento creado y QR generado');
         document.getElementById('ovDept').classList.remove('show');
         loadDepartamentos(); loadResumen();
       } catch(e) { errEl.textContent = 'Error: '+e.message; errEl.classList.add('show'); }
@@ -651,7 +652,7 @@
     async function delDept(id, nombre) {
       if (!confirm(`¿Eliminar el departamento "${nombre}"?`)) return;
       await db.collection('departamentos').doc(id).delete();
-      toast('🗑️ Departamento eliminado'); loadDepartamentos(); loadResumen();
+      toast('Departamento eliminado'); loadDepartamentos(); loadResumen();
     }
 
     // Ver QR grande + descargar
@@ -700,7 +701,7 @@
         .limit(300)
         .onSnapshot(snap => {
           if (snap.empty) {
-            document.getElementById('tablaFichajes').innerHTML = '<div class="empty"><div class="empty-icon">🕐</div>No hay fichajes aún</div>';
+            document.getElementById('tablaFichajes').innerHTML = '<div class="empty">No hay fichajes aún</div>';
             return;
           }
           document.getElementById('tablaFichajes').innerHTML = `<table><thead><tr>
@@ -713,7 +714,7 @@
             let ubicacion = '—';
             if (f.lat != null && f.lng != null) {
               const dist = f.distanciaDept != null ? ` (${Math.round(f.distanciaDept)}m)` : '';
-              ubicacion = `<a href="https://maps.google.com/?q=${f.lat},${f.lng}" target="_blank" style="color:var(--accent)">📍 Maps${dist}</a>`;
+              ubicacion = `<a href="https://maps.google.com/?q=${f.lat},${f.lng}" target="_blank" style="color:var(--accent)">Maps${dist}</a>`;
             } else if (f.locError) {
               ubicacion = `<span style="color:var(--muted);font-size:11px">${f.locError}</span>`;
             }
@@ -783,8 +784,8 @@
       document.getElementById('drawerEmail').textContent  = userData.email  || '—';
       const rolPill = userData.rol === 'admin' ? 'pill-admin' : 'pill-emp';
       document.getElementById('drawerMeta').innerHTML =
-        (userData.empresa ? '<span>\uD83C\uDFE2 ' + userData.empresa + '</span> \xB7 ' : '') +
-        (userData.departamento ? '<span>\uD83D\uDCC2 ' + userData.departamento + '</span> \xB7 ' : '') +
+        (userData.empresa ? '<span>' + userData.empresa + '</span> \xB7 ' : '') +
+        (userData.departamento ? '<span>' + userData.departamento + '</span> \xB7 ' : '') +
         '<span class="pill ' + rolPill + '" style="font-size:9px">' + (userData.rol || 'empleado') + '</span>';
 
       document.getElementById('drawerStats').innerHTML = '<div class="dstat"><div class="dstat-label">Cargando...</div></div>';
@@ -822,7 +823,7 @@
           '<div class="dstat"><div class="dstat-label">Horas extra</div><div class="dstat-value c-warn">' + hExtra.toFixed(1) + 'h</div></div>';
 
         if (!fichajes.length) {
-          document.getElementById('drawerFichajes').innerHTML = '<div class="empty"><div class="empty-icon">\uD83D\uDD50</div>Sin fichajes registrados</div>';
+          document.getElementById('drawerFichajes').innerHTML = '<div class="empty">Sin fichajes registrados</div>';
           return;
         }
 
@@ -868,9 +869,9 @@
       if (fichajesUnsub) { fichajesUnsub(); fichajesUnsub = null; }
 
       const labels = [];
-      if (filters.nombre) labels.push('\uD83D\uDC64 ' + filters.nombre);
-      if (filters.departamento) labels.push('\uD83C\uDFE2 ' + filters.departamento);
-      if (filters.tipo) labels.push('\uD83D\uDCCB ' + filters.tipo);
+      if (filters.nombre) labels.push(filters.nombre);
+      if (filters.departamento) labels.push(filters.departamento);
+      if (filters.tipo) labels.push(filters.tipo);
 
       try {
         let query;
@@ -905,14 +906,14 @@
         }
 
         const bannerHtml = labels.length
-          ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 22px;background:rgba(0,229,255,.06);border-bottom:1px solid rgba(0,229,255,.15)">' +
-            '<span style="font-size:11px;color:var(--accent)">Filtro activo: ' + labels.join(' \xB7 ') + '</span>' +
-            '<button onclick="loadFichajes()" style="font-size:10px;padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--accent);cursor:pointer">\u2715 Limpiar</button>' +
+          ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 22px;background:rgba(226,226,226,.04);border-bottom:1px solid #2a2a2a">' +
+            '<span style="font-size:11px;color:var(--text-secondary)">Filtro activo: ' + labels.join(' \xB7 ') + '</span>' +
+            '<button onclick="loadFichajes()" style="font-size:10px;padding:4px 10px;background:transparent;border:1px solid #333;border-radius:6px;color:var(--text-secondary);cursor:pointer">Limpiar</button>' +
             '</div>'
           : '';
 
         if (!docs.length) {
-          container.innerHTML = bannerHtml + '<div class="empty"><div class="empty-icon">\uD83D\uDD50</div>No hay fichajes con ese filtro</div>';
+          container.innerHTML = bannerHtml + '<div class="empty">No hay fichajes con ese filtro</div>';
           return;
         }
 
@@ -925,7 +926,7 @@
           let ubicacion = '—';
           if (f.lat != null && f.lng != null) {
             const dist = f.distanciaDept != null ? ' (' + Math.round(f.distanciaDept) + 'm)' : '';
-            ubicacion = '<a href="https://maps.google.com/?q=' + f.lat + ',' + f.lng + '" target="_blank" style="color:var(--accent)">\uD83D\uDCCD Maps' + dist + '</a>';
+            ubicacion = '<a href="https://maps.google.com/?q=' + f.lat + ',' + f.lng + '" target="_blank" style="color:var(--accent)">Maps' + dist + '</a>';
           } else if (f.locError) {
             ubicacion = '<span style="color:var(--muted);font-size:11px">' + f.locError + '</span>';
           }
