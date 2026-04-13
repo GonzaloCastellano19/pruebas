@@ -137,6 +137,15 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   localStorage.removeItem('user'); location.href = 'index.html';
 });
 
+// ── Formato horas decimales → H:mm ───────────────────────────────────────
+function fmtHoras(decimal) {
+  if (decimal == null) return '—';
+  const totalMin = Math.round(decimal * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h + ':' + String(m).padStart(2, '0') + 'h';
+}
+
 const MAX_DISTANCIA_METROS = 200;
 const HORAS_JORNADA_NORMAL = 8;
 
@@ -271,8 +280,8 @@ async function procesarFichajeAutomatico(deptId) {
     if (tipo === 'salida' && duracionMin != null) {
       const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
       details.push(`Jornada: ${hh}h ${mm}m`);
-      if (horasNormales != null) details.push(`Normales: ${horasNormales.toFixed(2)}h`);
-      if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${horasExtra.toFixed(2)}h`);
+      if (horasNormales != null) details.push(`Normales: ${fmtHoras(horasNormales)}`);
+      if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${fmtHoras(horasExtra)}`);
     }
     document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
   } catch(err) {
@@ -429,8 +438,8 @@ async function procesarFichajeConId(deptId) {
     if (tipo === 'salida' && duracionMin != null) {
       const hh = Math.floor(duracionMin / 60), mm = duracionMin % 60;
       details.push(`Jornada: ${hh}h ${mm}m`);
-      if (horasNormales != null) details.push(`Normales: ${horasNormales.toFixed(2)}h`);
-      if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${horasExtra.toFixed(2)}h`);
+      if (horasNormales != null) details.push(`Normales: ${fmtHoras(horasNormales)}`);
+      if (horasExtra != null && horasExtra > 0) details.push(`Extra: ${fmtHoras(horasExtra)}`);
     }
     document.getElementById('fichajeDetail').innerHTML = details.join('<br>');
   } catch(err) {
