@@ -192,12 +192,13 @@ function setReaderMsg(html) {
 }
 
 // ── Guardar fichaje fallido y notificar jefes ────────────────────────────
-async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, empLng, distanciaDept) {
+async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, empLng, distanciaDept, motivo) {
+  motivo = motivo || 'departamento_incorrecto';
   // 1. Guardar registro fallido
   await db.collection('fichajes').add({
     userId: user.id, email: user.email, nombre: user.nombre || '',
     empresa: user.empresa || '', departamento: deptNombre, departamentoId: deptId,
-    tipo: 'fallido', motivo: 'departamento_incorrecto',
+    tipo: 'fallido', motivo,
     departamentoAsignado: user.departamento || '—',
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
     timestampCliente: ahora.toISOString(),
@@ -269,9 +270,18 @@ async function procesarFichajeAutomatico(deptId) {
     if (!deptDoc.exists) { setReaderMsg(''); showError('QR no válido o departamento eliminado'); return; }
     const dept = deptDoc.data();
 
-    // Validar que el departamento escaneado coincide con el asignado al usuario
+    // Validar que el QR pertenece al mismo jefe que creó al empleado
+    const userDoc = await db.collection('usuarios').doc(user.id).get();
+    const jefeDelEmpleado = userDoc.exists ? userDoc.data().creadoPor : null;
+    if (jefeDelEmpleado && dept.creadoPor !== jefeDelEmpleado) {
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece');
+      setReaderMsg('');
+      showError(`No puedes fichar en "${dept.nombre}". Este departamento no pertenece a tu empresa.`);
+      return;
+    }
+    // Validar que el departamento coincide con el asignado al usuario (si tiene uno asignado)
     if (user.departamento && user.departamento !== dept.nombre) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null);
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto');
       setReaderMsg('');
       showError(`Este QR corresponde a "${dept.nombre}" pero tú estás asignado a "${user.departamento}".`);
       return;
@@ -445,9 +455,17 @@ async function procesarFichajeConId(deptId) {
     if (!deptDoc.exists) { showError('QR no válido o departamento eliminado'); return; }
     const dept = deptDoc.data();
 
-    // Validar que el departamento escaneado coincide con el asignado al usuario
+    // Validar que el QR pertenece al mismo jefe que creó al empleado
+    const userDoc2 = await db.collection('usuarios').doc(user.id).get();
+    const jefeDelEmpleado2 = userDoc2.exists ? userDoc2.data().creadoPor : null;
+    if (jefeDelEmpleado2 && dept.creadoPor !== jefeDelEmpleado2) {
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece');
+      showError(`No puedes fichar en "${dept.nombre}". Este departamento no pertenece a tu empresa.`);
+      return;
+    }
+    // Validar que el departamento coincide con el asignado al usuario (si tiene uno asignado)
     if (user.departamento && user.departamento !== dept.nombre) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null);
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto');
       showError(`Este QR corresponde a "${dept.nombre}" pero tú estás asignado a "${user.departamento}".`);
       return;
     }
