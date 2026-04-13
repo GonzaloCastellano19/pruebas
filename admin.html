@@ -102,6 +102,32 @@ animation: fadeUp .4s ease both; transition: border-color .2s;
 /* ── Fichajes en tiempo real: badge nuevo ── */
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 .live-dot { display: inline-block; width: 7px; height: 7px; background: #5aad7e; border-radius: 50%; margin-right: 7px; animation: pulse 2s infinite; }
+/* ── Barra de filtros ── */
+.filter-bar {
+  display: flex; align-items: center; gap: 10px; padding: 14px 22px;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.filter-input {
+  padding: 7px 12px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 12px; outline: none; transition: border-color .2s; min-width: 140px;
+}
+.filter-input:focus { border-color: #555; }
+.filter-input::placeholder { color: var(--muted); }
+.filter-select {
+  padding: 7px 12px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 12px; outline: none; cursor: pointer;
+}
+.filter-select option { background: var(--surface); }
+.btn-filter-clear {
+  padding: 7px 14px; background: transparent; border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text-secondary); font-family: 'Inter', sans-serif;
+  font-size: 12px; cursor: pointer; transition: border-color .2s, color .2s; white-space: nowrap;
+}
+.btn-filter-clear:hover { border-color: #555; color: var(--text); }
+.filter-count { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
 /* ── Paginación ── */
 .pagination {
 display: flex; align-items: center; justify-content: space-between;
@@ -239,6 +265,17 @@ font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s,
         <div><div class="page-title">Fichajes</div><div class="page-sub">Registro completo con hora exacta</div></div>
       </div>
       <div class="tcard">
+        <div class="filter-bar">
+          <input class="filter-input" id="filtroNombre" placeholder="Buscar nombre..." oninput="aplicarFiltrosLocales()">
+          <input class="filter-input" id="filtroDept" placeholder="Departamento..." oninput="aplicarFiltrosLocales()">
+          <select class="filter-select" id="filtroTipo" onchange="aplicarFiltrosLocales()">
+            <option value="">Todos los tipos</option>
+            <option value="entrada">Entrada</option>
+            <option value="salida">Salida</option>
+          </select>
+          <button class="btn-filter-clear" onclick="limpiarFiltros()">Limpiar filtros</button>
+          <span class="filter-count" id="filtroCount"></span>
+        </div>
         <div id="tablaFichajesContent"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
         <div class="pagination" id="paginationFichajes" style="display:none">
           <span class="pagination-info" id="paginationFichajesInfo"></span>
@@ -418,7 +455,13 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (sec === 'resumen') loadResumen();
     if (sec === 'usuarios') loadUsuarios();
     if (sec === 'departamentos') loadDepartamentos();
-    if (sec === 'fichajes') loadFichajes();
+    if (sec === 'fichajes') {
+      document.getElementById('filtroNombre').value = '';
+      document.getElementById('filtroDept').value = '';
+      document.getElementById('filtroTipo').value = '';
+      document.getElementById('filtroCount').textContent = '';
+      loadFichajes();
+    }
   });
 });
 
@@ -768,15 +811,54 @@ function renderFichajesPage(page) {
   renderPagination('paginationFichajesBtns', 'paginationFichajesInfo', fichajesAllDocs.length, fichajesPage, renderFichajesPage);
 }
 
+// ── Filtrado local sobre todos los docs cargados ─────────────────────────
+let fichajesAllDocsOriginal = []; // copia sin filtrar
+
+function aplicarFiltrosLocales() {
+  const nombre = (document.getElementById('filtroNombre').value || '').toLowerCase().trim();
+  const dept = (document.getElementById('filtroDept').value || '').toLowerCase().trim();
+  const tipo = document.getElementById('filtroTipo').value;
+
+  let docs = fichajesAllDocsOriginal;
+  if (nombre) docs = docs.filter(d => (d.data().nombre || '').toLowerCase().includes(nombre));
+  if (dept)   docs = docs.filter(d => (d.data().departamento || '').toLowerCase().includes(dept));
+  if (tipo)   docs = docs.filter(d => d.data().tipo === tipo);
+
+  fichajesAllDocs = docs;
+  fichajesPage = 1;
+  document.getElementById('filtroCount').textContent = docs.length + ' resultado' + (docs.length !== 1 ? 's' : '');
+  renderFichajesPage(1);
+}
+
+function limpiarFiltros() {
+  document.getElementById('filtroNombre').value = '';
+  document.getElementById('filtroDept').value = '';
+  document.getElementById('filtroTipo').value = '';
+  fichajesAllDocs = fichajesAllDocsOriginal;
+  fichajesPage = 1;
+  document.getElementById('filtroCount').textContent = '';
+  renderFichajesPage(1);
+}
+
 function loadFichajes() {
   fichajesActiveFilters = null;
   document.getElementById('tablaFichajesContent').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   if (fichajesUnsub) fichajesUnsub();
 
   fichajesUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(1000).onSnapshot(snap => {
-    fichajesAllDocs = snap.docs;
-    fichajesPage = 1;
-    renderFichajesPage(1);
+    fichajesAllDocsOriginal = snap.docs;
+    // Reaplicar filtros activos si los hay
+    const nombre = (document.getElementById('filtroNombre').value || '').toLowerCase().trim();
+    const dept = (document.getElementById('filtroDept').value || '').toLowerCase().trim();
+    const tipo = document.getElementById('filtroTipo').value;
+    if (nombre || dept || tipo) {
+      aplicarFiltrosLocales();
+    } else {
+      fichajesAllDocs = snap.docs;
+      fichajesPage = 1;
+      document.getElementById('filtroCount').textContent = snap.docs.length + ' resultado' + (snap.docs.length !== 1 ? 's' : '');
+      renderFichajesPage(1);
+    }
   }, err => console.error(err));
 }
 
