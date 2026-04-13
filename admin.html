@@ -942,7 +942,8 @@ function buildFichajesRow(f) {
   let motivo = '—';
   if (f.tipo === 'fallido') {
     if (f.motivo === 'distancia_excedida') motivo = f.distanciaDept != null ? `Demasiado lejos (${Math.round(f.distanciaDept)}m)` : 'Demasiado lejos';
-    else if (f.motivo === 'departamento_incorrecto') motivo = `Dept. incorrecto (asignado: ${f.departamentoAsignado || '—'})`;
+    else if (f.motivo === 'departamento_no_pertenece') motivo = `Departamento ajeno${f.departamentoAsignado && f.departamentoAsignado !== '—' ? ' (asignado: ' + f.departamentoAsignado + ')' : ''}`;
+    else if (f.motivo === 'departamento_incorrecto') motivo = `Dept. incorrecto${f.departamentoAsignado && f.departamentoAsignado !== '—' ? ' (asignado: ' + f.departamentoAsignado + ')' : ''}`;
     else motivo = f.motivo || 'Desconocido';
   }
   return `<tr${f.tipo === 'fallido' ? ' style="background:rgba(192,57,43,.04)"' : ''}>
