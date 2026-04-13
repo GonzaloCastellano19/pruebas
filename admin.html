@@ -896,9 +896,9 @@ async function loadFichajes() {
     if (nombre || dept || tipo) {
       aplicarFiltrosLocales();
     } else {
-      fichajesAllDocs = snap.docs;
+      fichajesAllDocs = fichajesAllDocsOriginal;
       fichajesPage = 1;
-      document.getElementById('filtroCount').textContent = snap.docs.length + ' resultado' + (snap.docs.length !== 1 ? 's' : '');
+      document.getElementById('filtroCount').textContent = fichajesAllDocsOriginal.length + ' resultado' + (fichajesAllDocsOriginal.length !== 1 ? 's' : '');
       renderFichajesPage(1);
     }
   }, err => console.error(err));
