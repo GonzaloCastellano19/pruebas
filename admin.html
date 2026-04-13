@@ -533,19 +533,23 @@ function loadResumen() {
   resumenUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(500).onSnapshot(async fSnap => {
     try {
       const [uSnap, dSnap] = await Promise.all([
-        db.collection('usuarios').get(),
-        db.collection('departamentos').get()
+        db.collection('usuarios').where('creadoPor','==',me.id).get(),
+        db.collection('departamentos').where('creadoPor','==',me.id).get()
       ]);
+      // IDs de usuarios creados por este admin
+      const misUserIds = new Set(uSnap.docs.map(d => d.id));
       document.getElementById('stUsuarios').textContent = uSnap.size;
       document.getElementById('stDepts').textContent = dSnap.size;
+      // Filtrar fichajes solo de los usuarios de este admin
+      const misFichajes = fSnap.docs.filter(d => misUserIds.has(d.data().userId));
       const hoy = new Date(); hoy.setHours(0,0,0,0);
-      const hoyN = fSnap.docs.filter(d => { const ts = d.data().timestamp; return ts && ts.toDate && ts.toDate() >= hoy; }).length;
+      const hoyN = misFichajes.filter(d => { const ts = d.data().timestamp; return ts && ts.toDate && ts.toDate() >= hoy; }).length;
       document.getElementById('stHoy').textContent = hoyN;
       const last = {};
-      fSnap.docs.slice().reverse().forEach(d => { const f = d.data(); if(!last[f.userId]) last[f.userId] = f.tipo; });
+      misFichajes.slice().reverse().forEach(d => { const f = d.data(); if(!last[f.userId]) last[f.userId] = f.tipo; });
       document.getElementById('stActivos').textContent = Object.values(last).filter(t=>t==='entrada').length;
 
-      resumenAllDocs = fSnap.docs;
+      resumenAllDocs = misFichajes;
       resumenPage = 1;
       renderResumenPage(1);
     } catch(e) { console.error(e); }
@@ -558,7 +562,7 @@ function loadResumen() {
 async function loadUsuarios() {
   document.getElementById('tablaUsuarios').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   try {
-    const snap = await db.collection('usuarios').get();
+    const snap = await db.collection('usuarios').where('creadoPor','==',me.id).get();
     if (snap.empty) { document.getElementById('tablaUsuarios').innerHTML = '<div class="empty">Sin usuarios</div>'; return; }
     document.getElementById('tablaUsuarios').innerHTML = `<table><thead><tr>
       <th>Nombre</th><th>Email</th><th>Empresa</th><th>Departamento</th><th>Rol</th><th>Acciones</th>
@@ -589,7 +593,7 @@ async function openUserModal(title, data={}) {
   document.getElementById('fEmpresa').value = data.empresa || '';
   document.getElementById('fEmail').disabled = !!editingUserId;
   document.getElementById('modalUserErr').classList.remove('show');
-  const dSnap = await db.collection('departamentos').get();
+  const dSnap = await db.collection('departamentos').where('creadoPor','==',me.id).get();
   const sel = document.getElementById('fDept');
   sel.innerHTML = '<option value="">— Sin departamento —</option>';
   dSnap.docs.forEach(d => {
@@ -625,6 +629,7 @@ document.getElementById('btnGuardarUser').addEventListener('click', async () => 
     } else {
       const check = await db.collection('usuarios').where('email','==',email).get();
       if (!check.empty) { errEl.textContent = 'Ya existe ese email'; errEl.classList.add('show'); btn.disabled=false; btn.textContent='Guardar'; return; }
+      datos.creadoPor = me.id;
       await db.collection('usuarios').add(datos);
       toast('Usuario creado');
     }
@@ -650,7 +655,7 @@ async function delUser(id, nombre) {
 async function loadDepartamentos() {
   document.getElementById('qrGrid').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   try {
-    const snap = await db.collection('departamentos').get();
+    const snap = await db.collection('departamentos').where('creadoPor','==',me.id).get();
     if (snap.empty) { document.getElementById('qrGrid').innerHTML = '<div class="empty">Sin departamentos. Crea el primero.</div>'; return; }
     document.getElementById('qrGrid').innerHTML = '';
     snap.docs.forEach(d => renderQRCard(d.id, d.data()));
@@ -719,7 +724,7 @@ document.getElementById('btnGuardarDept').addEventListener('click', async () => 
   if (lngDept !== null && (isNaN(lngDept) || lngDept < -180 || lngDept > 180)) { errEl.textContent = 'Longitud inválida'; errEl.classList.add('show'); return; }
   btn.disabled = true; btn.textContent = 'Creando...';
   try {
-    await db.collection('departamentos').add({ nombre, empresa, lat: latDept, lng: lngDept, creadoEn: firebase.firestore.FieldValue.serverTimestamp() });
+    await db.collection('departamentos').add({ nombre, empresa, lat: latDept, lng: lngDept, creadoPor: me.id, creadoEn: firebase.firestore.FieldValue.serverTimestamp() });
     toast('Departamento creado y QR generado');
     document.getElementById('ovDept').classList.remove('show');
     loadDepartamentos(); loadResumen();
@@ -866,13 +871,17 @@ function limpiarFiltros() {
   renderFichajesPage(1);
 }
 
-function loadFichajes() {
+async function loadFichajes() {
   fichajesActiveFilters = null;
   document.getElementById('tablaFichajesContent').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   if (fichajesUnsub) fichajesUnsub();
 
+  // Obtener primero los userIds de mis usuarios
+  const misUsuariosSnap = await db.collection('usuarios').where('creadoPor','==',me.id).get();
+  const misUserIds = new Set(misUsuariosSnap.docs.map(d => d.id));
+
   fichajesUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(1000).onSnapshot(snap => {
-    fichajesAllDocsOriginal = snap.docs;
+    fichajesAllDocsOriginal = snap.docs.filter(d => misUserIds.has(d.data().userId));
     // Reaplicar filtros activos si los hay
     const nombre = (document.getElementById('filtroNombre').value || '').toLowerCase().trim();
     const dept = (document.getElementById('filtroDept').value || '').toLowerCase().trim();
@@ -994,6 +1003,10 @@ async function loadFichajesFiltered(filters) {
 
   try {
     let query;
+    // Obtener userIds del admin para filtrar
+    const misUsuariosSnap2 = await db.collection('usuarios').where('creadoPor','==',me.id).get();
+    const misUserIds2 = new Set(misUsuariosSnap2.docs.map(d => d.id));
+
     if (filters.userId) {
       query = db.collection('fichajes').where('userId','==',filters.userId).limit(1000);
     } else if (filters.departamento) {
@@ -1005,7 +1018,7 @@ async function loadFichajesFiltered(filters) {
     }
 
     const snap = await query.get();
-    let docs = snap.docs;
+    let docs = snap.docs.filter(d => misUserIds2.has(d.data().userId));
 
     if (filters.userId || filters.departamento || filters.tipo) {
       docs = docs.slice().sort(function(a, b) {
