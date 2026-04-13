@@ -764,10 +764,19 @@ let fichajesAllDocs = [];
 let fichajesPage = 1;
 let fichajesActiveFilters = null;
 
+// ── Formato horas decimales → H:mm ───────────────────────────────────────
+function fmtHoras(decimal) {
+  if (decimal == null) return '—';
+  const totalMin = Math.round(decimal * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h + ':' + String(m).padStart(2, '0') + 'h';
+}
+
 function buildFichajesRow(f) {
   const jornada = f.duracionMin != null ? `${Math.floor(f.duracionMin/60)}h ${f.duracionMin%60}m` : '—';
-  const hNorm = f.horasNormales != null ? f.horasNormales.toFixed(2) + 'h' : '—';
-  const hExtra = f.horasExtra != null ? f.horasExtra.toFixed(2) + 'h' : '—';
+  const hNorm = fmtHoras(f.horasNormales);
+  const hExtra = fmtHoras(f.horasExtra);
   let ubicacion = '—';
   if (f.lat != null && f.lng != null) {
     const dist = f.distanciaDept != null ? ` (${Math.round(f.distanciaDept)}m)` : '';
@@ -945,8 +954,8 @@ async function openUserDrawer(userId, userData) {
     document.getElementById('drawerStats').innerHTML =
       '<div class="dstat"><div class="dstat-label">Total fichajes</div><div class="dstat-value c-accent">' + total + '</div></div>' +
       '<div class="dstat"><div class="dstat-label">Este mes</div><div class="dstat-value c-accent">' + esteMes + '</div></div>' +
-      '<div class="dstat"><div class="dstat-label">Horas normales</div><div class="dstat-value c-success">' + hNorm.toFixed(1) + 'h</div></div>' +
-      '<div class="dstat"><div class="dstat-label">Horas extra</div><div class="dstat-value c-warn">' + hExtra.toFixed(1) + 'h</div></div>';
+      '<div class="dstat"><div class="dstat-label">Horas normales</div><div class="dstat-value c-success">' + fmtHoras(hNorm) + '</div></div>' +
+      '<div class="dstat"><div class="dstat-label">Horas extra</div><div class="dstat-value c-warn">' + fmtHoras(hExtra) + '</div></div>';
     if (!fichajes.length) { document.getElementById('drawerFichajes').innerHTML = '<div class="empty">Sin fichajes registrados</div>'; return; }
     let rows = '';
     fichajes.forEach(function(f) {
