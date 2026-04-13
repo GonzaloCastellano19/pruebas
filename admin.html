@@ -383,10 +383,7 @@ document.getElementById('adminName').textContent = me.nombre || me.email;
 document.getElementById('rolBadge').textContent = me.rol === 'jefe' ? 'Jefe' : 'Admin';
 
 // ── Ajustar UI según rol ─────────────────────────────────────────────────
-if (me.rol === 'jefe') {
-  // Ocultar sección departamentos del sidebar
-  document.querySelector('.nav-item[data-sec="departamentos"]').style.display = 'none';
-}
+// Jefes tienen acceso a departamentos igual que admins
 
 // ── Bloquear navegación hacia atrás ───────────────────────────────────────
 history.pushState(null, '', location.href);
