@@ -70,6 +70,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .pill-emp { background: rgba(226,226,226,.06); border: 1px solid #2a2a2a; color: #a0a0a0; }
 .pill-entrada { background: rgba(45,122,79,.15); border: 1px solid rgba(45,122,79,.3); color: #5aad7e; }
 .pill-salida { background: rgba(90,90,90,.15); border: 1px solid #333; color: #a0a0a0; }
+.pill-fallido { background: rgba(192,57,43,.12); border: 1px solid rgba(192,57,43,.35); color: #c0392b; }
 .btn-act { padding: 5px 11px; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; border: 1px solid transparent; }
 .btn-edit { background: transparent; border-color: rgba(226,226,226,.2); color: var(--accent); margin-right: 5px; }
 .btn-edit:hover { background: rgba(226,226,226,.06); }
@@ -272,6 +273,7 @@ font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s,
             <option value="">Todos los tipos</option>
             <option value="entrada">Entrada</option>
             <option value="salida">Salida</option>
+            <option value="fallido">Fallido</option>
           </select>
           <button class="btn-filter-clear" onclick="limpiarFiltros()">Limpiar filtros</button>
           <span class="filter-count" id="filtroCount"></span>
@@ -764,7 +766,12 @@ function buildFichajesRow(f) {
   } else if (f.locError) {
     ubicacion = `<span style="color:var(--muted);font-size:11px">${f.locError}</span>`;
   }
-  return `<tr>
+  let motivo = '—';
+  if (f.tipo === 'fallido') {
+    if (f.motivo === 'distancia_excedida') motivo = f.distanciaDept != null ? `Demasiado lejos (${Math.round(f.distanciaDept)}m)` : 'Demasiado lejos';
+    else motivo = f.motivo || 'Desconocido';
+  }
+  return `<tr${f.tipo === 'fallido' ? ' style="background:rgba(192,57,43,.04)"' : ''}>
     <td>${f.nombre||'—'}</td>
     <td style="color:var(--muted)">${f.email||'—'}</td>
     <td style="color:var(--muted)">${f.departamento||'—'}</td>
@@ -774,6 +781,7 @@ function buildFichajesRow(f) {
     <td style="color:var(--success)">${hNorm}</td>
     <td style="color:var(--warn)">${hExtra}</td>
     <td>${ubicacion}</td>
+    <td style="color:var(--danger);font-size:12px">${motivo}</td>
   </tr>`;
 }
 
@@ -805,7 +813,7 @@ function renderFichajesPage(page) {
   document.getElementById('tablaFichajesContent').innerHTML = bannerHtml + `
     <table><thead><tr>
       <th>Nombre</th><th>Email</th><th>Departamento</th><th>Tipo</th>
-      <th>Hora exacta del fichaje</th><th>Jornada</th><th>H. Normal</th><th>H. Extra</th><th>Ubicación</th>
+      <th>Hora exacta del fichaje</th><th>Jornada</th><th>H. Normal</th><th>H. Extra</th><th>Ubicación</th><th>Motivo</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
 
   renderPagination('paginationFichajesBtns', 'paginationFichajesInfo', fichajesAllDocs.length, fichajesPage, renderFichajesPage);
