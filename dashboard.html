@@ -202,6 +202,16 @@ async function procesarFichajeAutomatico(deptId) {
     if (dept.lat != null && dept.lng != null) {
       distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
       if (distanciaDept > MAX_DISTANCIA_METROS) {
+        // Guardar registro fallido
+        await db.collection('fichajes').add({
+          userId: user.id, email: user.email, nombre: user.nombre || '',
+          empresa: user.empresa || '', departamento: dept.nombre, departamentoId: deptId,
+          tipo: 'fallido', motivo: 'distancia_excedida',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          timestampCliente: ahora.toISOString(),
+          lat: empLat, lng: empLng, distanciaDept,
+          horasNormales: null, horasExtra: null, duracionMin: null
+        });
         setReaderMsg(''); showError(`No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
       }
     }
@@ -360,6 +370,15 @@ async function procesarFichajeConId(deptId) {
     if (empLat != null && dept.lat != null && dept.lng != null) {
       distanciaDept = Math.round(haversineMetros(empLat, empLng, dept.lat, dept.lng));
       if (distanciaDept > MAX_DISTANCIA_METROS) {
+        await db.collection('fichajes').add({
+          userId: user.id, email: user.email, nombre: user.nombre || '',
+          empresa: user.empresa || '', departamento: dept.nombre, departamentoId: deptId,
+          tipo: 'fallido', motivo: 'distancia_excedida',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          timestampCliente: ahora.toISOString(),
+          lat: empLat, lng: empLng, distanciaDept,
+          horasNormales: null, horasExtra: null, duracionMin: null
+        });
         showError(`No estás cerca del departamento (distancia: ${distanciaDept}m, máximo ${MAX_DISTANCIA_METROS}m)`); return;
       }
     }
