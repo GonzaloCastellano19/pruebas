@@ -624,6 +624,8 @@ document.getElementById('btnGuardarUser').addEventListener('click', async () => 
     const datos = { nombre, email, rol, empresa, departamento: dept };
     if (password) datos.password = await hashPassword(password);
     if (editingUserId) {
+      const docCheck = await db.collection('usuarios').doc(editingUserId).get();
+      if (!docCheck.exists || docCheck.data().creadoPor !== me.id) { errEl.textContent = 'Sin permiso'; errEl.classList.add('show'); btn.disabled=false; btn.textContent='Guardar'; return; }
       await db.collection('usuarios').doc(editingUserId).update(datos);
       toast('Usuario actualizado');
     } else {
@@ -641,9 +643,12 @@ document.getElementById('btnGuardarUser').addEventListener('click', async () => 
 
 async function editUser(id) {
   const doc = await db.collection('usuarios').doc(id).get();
+  if (!doc.exists || doc.data().creadoPor !== me.id) { toast('Sin permiso', 'err'); return; }
   editingUserId = id; openUserModal('Editar usuario', doc.data());
 }
 async function delUser(id, nombre) {
+  const doc = await db.collection('usuarios').doc(id).get();
+  if (!doc.exists || doc.data().creadoPor !== me.id) { toast('Sin permiso', 'err'); return; }
   if (!confirm(`¿Eliminar "${nombre}"?`)) return;
   await db.collection('usuarios').doc(id).delete();
   toast('Usuario eliminado'); loadUsuarios(); loadResumen();
@@ -733,6 +738,8 @@ document.getElementById('btnGuardarDept').addEventListener('click', async () => 
 });
 
 async function delDept(id, nombre) {
+  const doc = await db.collection('departamentos').doc(id).get();
+  if (!doc.exists || doc.data().creadoPor !== me.id) { toast('Sin permiso', 'err'); return; }
   if (!confirm(`¿Eliminar el departamento "${nombre}"?`)) return;
   await db.collection('departamentos').doc(id).delete();
   toast('Departamento eliminado'); loadDepartamentos(); loadResumen();
@@ -931,7 +938,7 @@ document.getElementById('recentFichajes').addEventListener('click', function(e) 
 // ─────────────────────────────────────────────────────────────────────────
 async function openUserDrawerById(userId) {
   const doc = await db.collection('usuarios').doc(userId).get();
-  if (doc.exists) openUserDrawer(userId, doc.data());
+  if (doc.exists && doc.data().creadoPor === me.id) openUserDrawer(userId, doc.data());
 }
 
 async function openUserDrawer(userId, userData) {
