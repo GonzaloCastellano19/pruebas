@@ -73,7 +73,9 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .pill-emp { background: rgba(226,226,226,.06); border: 1px solid #2a2a2a; color: #a0a0a0; }
 .pill-entrada { background: rgba(45,122,79,.15); border: 1px solid rgba(45,122,79,.3); color: #5aad7e; }
 .pill-salida { background: rgba(90,90,90,.15); border: 1px solid #333; color: #a0a0a0; }
+.pill-jefe { background: rgba(100,149,237,.1); border: 1px solid rgba(100,149,237,.3); color: #7ba7e8; }
 .pill-fallido { background: rgba(192,57,43,.12); border: 1px solid rgba(192,57,43,.35); color: #c0392b; }
+.pill-jefe { background: rgba(100,149,237,.1); border: 1px solid rgba(100,149,237,.3); color: #7ba7e8; }
 .btn-act { padding: 5px 11px; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; border: 1px solid transparent; }
 .btn-edit { background: transparent; border-color: rgba(226,226,226,.2); color: var(--accent); margin-right: 5px; }
 .btn-edit:hover { background: rgba(226,226,226,.06); }
@@ -211,7 +213,7 @@ font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s,
   <div class="logo">QR<span>Access</span> <small>Admin</small></div>
   <div class="topbar-right">
     <span id="adminName">—</span>
-    <span class="badge">Admin</span>
+    <span class="badge" id="rolBadge">Admin</span>
     <button class="btn-logout" id="btnLogout">Salir</button>
   </div>
 </div>
@@ -301,7 +303,11 @@ font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s,
     <div class="field"><label>Email</label><input type="email" id="fEmail" placeholder="juan@empresa.com"></div>
     <div class="field"><label>Contraseña</label><input type="password" id="fPassword" placeholder="mínimo 4 caracteres"></div>
     <div class="field"><label>Rol</label>
-      <select id="fRol"><option value="empleado">Empleado</option><option value="admin">Admin</option></select>
+      <select id="fRol">
+  <option value="empleado">Empleado</option>
+  <option value="jefe" id="optJefe">Jefe</option>
+  <option value="admin" id="optAdmin">Admin</option>
+</select>
     </div>
     <div class="field"><label>Empresa</label><input type="text" id="fEmpresa" placeholder="Mi Empresa SL"></div>
     <div class="field"><label>Departamento</label>
@@ -372,8 +378,15 @@ font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s,
 const userRaw = localStorage.getItem('user');
 if (!userRaw) location.href = 'index.html';
 const me = JSON.parse(userRaw);
-if (me.rol !== 'admin') location.href = 'dashboard.html';
+if (me.rol !== 'admin' && me.rol !== 'jefe') location.href = 'dashboard.html';
 document.getElementById('adminName').textContent = me.nombre || me.email;
+document.getElementById('rolBadge').textContent = me.rol === 'jefe' ? 'Jefe' : 'Admin';
+
+// ── Ajustar UI según rol ─────────────────────────────────────────────────
+if (me.rol === 'jefe') {
+  // Ocultar sección departamentos del sidebar
+  document.querySelector('.nav-item[data-sec="departamentos"]').style.display = 'none';
+}
 
 // ── Bloquear navegación hacia atrás ───────────────────────────────────────
 history.pushState(null, '', location.href);
@@ -532,14 +545,36 @@ function loadResumen() {
   if (resumenUnsub) resumenUnsub();
   resumenUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(500).onSnapshot(async fSnap => {
     try {
-      const [uSnap, dSnap] = await Promise.all([
-        db.collection('usuarios').where('creadoPor','==',me.id).get(),
-        db.collection('departamentos').where('creadoPor','==',me.id).get()
-      ]);
-      // IDs de usuarios creados por este admin
-      const misUserIds = new Set(uSnap.docs.map(d => d.id));
-      document.getElementById('stUsuarios').textContent = uSnap.size;
-      document.getElementById('stDepts').textContent = dSnap.size;
+      let misUserIds;
+      if (me.rol === 'admin') {
+        // Admin: ve sus propios usuarios + los de sus jefes
+        const [uSnap, dSnap, jefesSnap] = await Promise.all([
+          db.collection('usuarios').where('creadoPor','==',me.id).get(),
+          db.collection('departamentos').where('creadoPor','==',me.id).get(),
+          db.collection('usuarios').where('creadoPor','==',me.id).where('rol','==','jefe').get()
+        ]);
+        misUserIds = new Set(uSnap.docs.map(d => d.id));
+        // Añadir también los empleados creados por los jefes de este admin
+        const jefesIds = jefesSnap.docs.map(d => d.id);
+        if (jefesIds.length > 0) {
+          const empleadosDeJefes = await Promise.all(
+            jefesIds.map(jId => db.collection('usuarios').where('creadoPor','==',jId).get())
+          );
+          empleadosDeJefes.forEach(s => s.docs.forEach(d => misUserIds.add(d.id)));
+        }
+        document.getElementById('stUsuarios').textContent = uSnap.size;
+        document.getElementById('stDepts').textContent = dSnap.size;
+      } else {
+        // Jefe: solo ve sus empleados
+        const [uSnap, dSnap] = await Promise.all([
+          db.collection('usuarios').where('creadoPor','==',me.id).get(),
+          db.collection('departamentos').where('creadoPor','==',me.id).get()
+        ]);
+        misUserIds = new Set(uSnap.docs.map(d => d.id));
+        document.getElementById('stUsuarios').textContent = uSnap.size;
+        document.getElementById('stDepts').textContent = dSnap.size;
+      }
+
       // Filtrar fichajes solo de los usuarios de este admin
       const misFichajes = fSnap.docs.filter(d => misUserIds.has(d.data().userId));
       const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -562,6 +597,8 @@ function loadResumen() {
 async function loadUsuarios() {
   document.getElementById('tablaUsuarios').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   try {
+    // Admin ve a todos los que creó (jefes + empleados)
+    // Jefe ve solo a los empleados que él creó
     const snap = await db.collection('usuarios').where('creadoPor','==',me.id).get();
     if (snap.empty) { document.getElementById('tablaUsuarios').innerHTML = '<div class="empty">Sin usuarios</div>'; return; }
     document.getElementById('tablaUsuarios').innerHTML = `<table><thead><tr>
@@ -573,7 +610,7 @@ async function loadUsuarios() {
         <td style="color:var(--muted)">${u.email}</td>
         <td style="color:var(--muted)">${u.empresa||'—'}</td>
         <td style="color:var(--muted)">${u.departamento||'—'}</td>
-        <td><span class="pill ${u.rol==='admin'?'pill-admin':'pill-emp'}">${u.rol||'empleado'}</span></td>
+        <td><span class="pill ${u.rol==='admin'?'pill-admin':u.rol==='jefe'?'pill-jefe':'pill-emp'}">${u.rol||'empleado'}</span></td>
         <td>
           <button class="btn-act btn-edit" onclick="editUser('${d.id}')">Editar</button>
           <button class="btn-act btn-del" onclick="delUser('${d.id}','${(u.nombre||u.email).replace(/'/g,"\\'")}')">Eliminar</button>
@@ -592,6 +629,10 @@ async function openUserModal(title, data={}) {
   document.getElementById('fRol').value = data.rol || 'empleado';
   document.getElementById('fEmpresa').value = data.empresa || '';
   document.getElementById('fEmail').disabled = !!editingUserId;
+  // Jefe solo puede crear empleados
+  document.getElementById('optJefe').style.display = me.rol === 'jefe' ? 'none' : '';
+  document.getElementById('optAdmin').style.display = me.rol === 'jefe' ? 'none' : '';
+  if (me.rol === 'jefe') document.getElementById('fRol').value = 'empleado';
   document.getElementById('modalUserErr').classList.remove('show');
   const dSnap = await db.collection('departamentos').where('creadoPor','==',me.id).get();
   const sel = document.getElementById('fDept');
@@ -883,9 +924,25 @@ async function loadFichajes() {
   document.getElementById('tablaFichajesContent').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
   if (fichajesUnsub) fichajesUnsub();
 
-  // Obtener primero los userIds de mis usuarios
-  const misUsuariosSnap = await db.collection('usuarios').where('creadoPor','==',me.id).get();
-  const misUserIds = new Set(misUsuariosSnap.docs.map(d => d.id));
+  // Obtener userIds según rol
+  let misUserIds;
+  if (me.rol === 'admin') {
+    const [misSnap, jefesSnap] = await Promise.all([
+      db.collection('usuarios').where('creadoPor','==',me.id).get(),
+      db.collection('usuarios').where('creadoPor','==',me.id).where('rol','==','jefe').get()
+    ]);
+    misUserIds = new Set(misSnap.docs.map(d => d.id));
+    const jefesIds = jefesSnap.docs.map(d => d.id);
+    if (jefesIds.length > 0) {
+      const empleadosDeJefes = await Promise.all(
+        jefesIds.map(jId => db.collection('usuarios').where('creadoPor','==',jId).get())
+      );
+      empleadosDeJefes.forEach(s => s.docs.forEach(d => misUserIds.add(d.id)));
+    }
+  } else {
+    const misSnap = await db.collection('usuarios').where('creadoPor','==',me.id).get();
+    misUserIds = new Set(misSnap.docs.map(d => d.id));
+  }
 
   fichajesUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(1000).onSnapshot(snap => {
     fichajesAllDocsOriginal = snap.docs.filter(d => misUserIds.has(d.data().userId));
@@ -946,7 +1003,7 @@ async function openUserDrawer(userId, userData) {
   document.getElementById('drawerAvatar').textContent = initials;
   document.getElementById('drawerName').textContent = userData.nombre || '—';
   document.getElementById('drawerEmail').textContent = userData.email || '—';
-  const rolPill = userData.rol === 'admin' ? 'pill-admin' : 'pill-emp';
+  const rolPill = userData.rol === 'admin' ? 'pill-admin' : userData.rol === 'jefe' ? 'pill-jefe' : 'pill-emp';
   document.getElementById('drawerMeta').innerHTML =
     (userData.empresa ? '<span>' + userData.empresa + '</span> · ' : '') +
     (userData.departamento ? '<span>' + userData.departamento + '</span> · ' : '') +
@@ -1010,9 +1067,25 @@ async function loadFichajesFiltered(filters) {
 
   try {
     let query;
-    // Obtener userIds del admin para filtrar
-    const misUsuariosSnap2 = await db.collection('usuarios').where('creadoPor','==',me.id).get();
-    const misUserIds2 = new Set(misUsuariosSnap2.docs.map(d => d.id));
+    // Obtener userIds según rol
+    let misUserIds2;
+    if (me.rol === 'admin') {
+      const [misSnap2, jefesSnap2] = await Promise.all([
+        db.collection('usuarios').where('creadoPor','==',me.id).get(),
+        db.collection('usuarios').where('creadoPor','==',me.id).where('rol','==','jefe').get()
+      ]);
+      misUserIds2 = new Set(misSnap2.docs.map(d => d.id));
+      const jefesIds2 = jefesSnap2.docs.map(d => d.id);
+      if (jefesIds2.length > 0) {
+        const empleadosDeJefes2 = await Promise.all(
+          jefesIds2.map(jId => db.collection('usuarios').where('creadoPor','==',jId).get())
+        );
+        empleadosDeJefes2.forEach(s => s.docs.forEach(d => misUserIds2.add(d.id)));
+      }
+    } else {
+      const misSnap2 = await db.collection('usuarios').where('creadoPor','==',me.id).get();
+      misUserIds2 = new Set(misSnap2.docs.map(d => d.id));
+    }
 
     if (filters.userId) {
       query = db.collection('fichajes').where('userId','==',filters.userId).limit(1000);
