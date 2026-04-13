@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>QRAccess – Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- QR generator -->
@@ -371,6 +374,12 @@ if (!userRaw) location.href = 'index.html';
 const me = JSON.parse(userRaw);
 if (me.rol !== 'admin') location.href = 'dashboard.html';
 document.getElementById('adminName').textContent = me.nombre || me.email;
+
+// ── Bloquear navegación hacia atrás ───────────────────────────────────────
+history.pushState(null, '', location.href);
+window.addEventListener('popstate', function() {
+  history.pushState(null, '', location.href);
+});
 
 // ── Firebase ──────────────────────────────────────────────────────────────
 if (!firebase.apps.length) {
