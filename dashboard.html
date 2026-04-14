@@ -192,10 +192,12 @@ function setReaderMsg(html) {
 }
 
 // ── Guardar fichaje fallido y notificar jefes ────────────────────────────
-async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, empLng, distanciaDept, motivo) {
+// deptCreadoPor: id del jefe dueño del departamento (puede ser distinto al jefe del empleado)
+async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, empLng, distanciaDept, motivo, deptCreadoPor) {
   motivo = motivo || 'departamento_incorrecto';
-  // 1. Guardar registro fallido
-  await db.collection('fichajes').add({
+
+  // 1. Guardar registro fallido visible para el jefe del empleado (por userId)
+  const fichajeBase = {
     userId: user.id, email: user.email, nombre: user.nombre || '',
     empresa: user.empresa || '', departamento: deptNombre, departamentoId: deptId,
     tipo: 'fallido', motivo,
@@ -204,19 +206,45 @@ async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, emp
     timestampCliente: ahora.toISOString(),
     lat: empLat, lng: empLng, distanciaDept: distanciaDept || null,
     horasNormales: null, horasExtra: null, duracionMin: null
-  });
+  };
+  await db.collection('fichajes').add(fichajeBase);
 
-  // 2. Obtener cadena de jefes: jefe directo (creadoPor del usuario) y su superior (creadoPor del jefe)
-  const destinatarios = [];
+  // 2. Si el departamento es de otro jefe, guardar también un registro visible para ese jefe
+  //    usando deptCreadoPor como referencia de "propietario del intento"
+  if (deptCreadoPor) {
+    // Obtener el userId ficticio del jefe dueño del depto para que aparezca en sus fichajes:
+    // guardamos deptCreadoPor como "jefeAfectadoId" en un campo extra
+    await db.collection('fichajes').add({
+      ...fichajeBase,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      jefeAfectadoId: deptCreadoPor,
+      esRegistroEspejo: true  // marca para no contar doble en estadísticas
+    });
+  }
+
+  // 2. Construir lista de destinatarios sin duplicados:
+  //    - jefe del empleado + su superior (admin)
+  //    - jefe del departamento invadido + su superior (admin) — solo si es distinto
+  const destinatarios = new Set();
   try {
     const userDoc = await db.collection('usuarios').doc(user.id).get();
     const userData = userDoc.exists ? userDoc.data() : {};
-    const jefeDirectoId = userData.creadoPor || null;
-    if (jefeDirectoId) {
-      destinatarios.push(jefeDirectoId);
-      const jefeDoc = await db.collection('usuarios').doc(jefeDirectoId).get();
+    const jefeEmpleadoId = userData.creadoPor || null;
+
+    if (jefeEmpleadoId) {
+      destinatarios.add(jefeEmpleadoId);
+      const jefeDoc = await db.collection('usuarios').doc(jefeEmpleadoId).get();
       if (jefeDoc.exists && jefeDoc.data().creadoPor) {
-        destinatarios.push(jefeDoc.data().creadoPor);
+        destinatarios.add(jefeDoc.data().creadoPor); // admin superior
+      }
+    }
+
+    // Si el depto es de otro jefe, notificar también a ese jefe y su superior
+    if (deptCreadoPor && deptCreadoPor !== jefeEmpleadoId) {
+      destinatarios.add(deptCreadoPor);
+      const jefeDeptDoc = await db.collection('usuarios').doc(deptCreadoPor).get();
+      if (jefeDeptDoc.exists && jefeDeptDoc.data().creadoPor) {
+        destinatarios.add(jefeDeptDoc.data().creadoPor); // admin superior del otro jefe
       }
     }
   } catch(e) { console.error('Error buscando jefes:', e); }
@@ -224,13 +252,19 @@ async function guardarFallidoDepartamento(deptId, deptNombre, ahora, empLat, emp
   // 3. Crear notificación para cada destinatario
   const horaStr = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const fechaStr = ahora.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const mensaje = `${user.nombre || user.email} intentó fichar en "${deptNombre}" a las ${horaStr} del ${fechaStr}, pero no pertenece a ese departamento.`;
 
   for (const destId of destinatarios) {
     try {
+      // Mensaje personalizado según si eres el jefe del empleado o el del departamento
+      let mensaje;
+      if (deptCreadoPor && deptCreadoPor === destId) {
+        mensaje = `${user.nombre || user.email} intentó fichar en tu departamento "${deptNombre}" a las ${horaStr} del ${fechaStr}, pero no pertenece a él.`;
+      } else {
+        mensaje = `${user.nombre || user.email} intentó fichar en "${deptNombre}" a las ${horaStr} del ${fechaStr}, pero no pertenece a ese departamento.`;
+      }
       await db.collection('notificaciones').add({
         para: destId,
-        tipo: 'departamento_incorrecto',
+        tipo: motivo,
         mensaje,
         userId: user.id,
         userName: user.nombre || user.email,
@@ -274,14 +308,14 @@ async function procesarFichajeAutomatico(deptId) {
     const userDoc = await db.collection('usuarios').doc(user.id).get();
     const jefeDelEmpleado = userDoc.exists ? userDoc.data().creadoPor : null;
     if (jefeDelEmpleado && dept.creadoPor !== jefeDelEmpleado) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece');
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece', dept.creadoPor);
       setReaderMsg('');
       showError(`No puedes fichar en "${dept.nombre}". Este departamento no pertenece a tu empresa.`);
       return;
     }
     // Validar que el departamento coincide con el asignado al usuario (si tiene uno asignado)
     if (user.departamento && user.departamento !== dept.nombre) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto');
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto', dept.creadoPor);
       setReaderMsg('');
       showError(`Este QR corresponde a "${dept.nombre}" pero tú estás asignado a "${user.departamento}".`);
       return;
@@ -459,13 +493,13 @@ async function procesarFichajeConId(deptId) {
     const userDoc2 = await db.collection('usuarios').doc(user.id).get();
     const jefeDelEmpleado2 = userDoc2.exists ? userDoc2.data().creadoPor : null;
     if (jefeDelEmpleado2 && dept.creadoPor !== jefeDelEmpleado2) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece');
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_no_pertenece', dept.creadoPor);
       showError(`No puedes fichar en "${dept.nombre}". Este departamento no pertenece a tu empresa.`);
       return;
     }
     // Validar que el departamento coincide con el asignado al usuario (si tiene uno asignado)
     if (user.departamento && user.departamento !== dept.nombre) {
-      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto');
+      await guardarFallidoDepartamento(deptId, dept.nombre, ahora, empLat, empLng, null, 'departamento_incorrecto', dept.creadoPor);
       showError(`Este QR corresponde a "${dept.nombre}" pero tú estás asignado a "${user.departamento}".`);
       return;
     }
