@@ -677,8 +677,11 @@ function loadResumen() {
         document.getElementById('stDepts').textContent = dSnap.size;
       }
 
-      // Filtrar fichajes solo de los usuarios de este admin
-      const misFichajes = fSnap.docs.filter(d => misUserIds.has(d.data().userId));
+      // Filtrar fichajes: del empleado propio O registros espejo de departamento invadido
+      const misFichajes = fSnap.docs.filter(d => {
+        const f = d.data();
+        return misUserIds.has(f.userId) || f.jefeAfectadoId === me.id;
+      });
       const hoy = new Date(); hoy.setHours(0,0,0,0);
       const hoyN = misFichajes.filter(d => { const ts = d.data().timestamp; return ts && ts.toDate && ts.toDate() >= hoy; }).length;
       document.getElementById('stHoy').textContent = hoyN;
@@ -946,6 +949,7 @@ function buildFichajesRow(f) {
     else if (f.motivo === 'departamento_incorrecto') motivo = `Dept. incorrecto${f.departamentoAsignado && f.departamentoAsignado !== '—' ? ' (asignado: ' + f.departamentoAsignado + ')' : ''}`;
     else motivo = f.motivo || 'Desconocido';
   }
+  const esEspejo = f.esRegistroEspejo && f.jefeAfectadoId === me.id;
   return `<tr${f.tipo === 'fallido' ? ' style="background:rgba(192,57,43,.04)"' : ''}>
     <td>${f.nombre||'—'}</td>
     <td style="color:var(--muted)">${f.email||'—'}</td>
@@ -1049,7 +1053,11 @@ async function loadFichajes() {
   }
 
   fichajesUnsub = db.collection('fichajes').orderBy('timestamp','desc').limit(1000).onSnapshot(snap => {
-    fichajesAllDocsOriginal = snap.docs.filter(d => misUserIds.has(d.data().userId));
+    fichajesAllDocsOriginal = snap.docs.filter(d => {
+      const f = d.data();
+      // Registro propio del empleado O registro espejo dirigido a este jefe
+      return misUserIds.has(f.userId) || f.jefeAfectadoId === me.id;
+    });
     // Reaplicar filtros activos si los hay
     const nombre = (document.getElementById('filtroNombre').value || '').toLowerCase().trim();
     const dept = (document.getElementById('filtroDept').value || '').toLowerCase().trim();
@@ -1063,6 +1071,156 @@ async function loadFichajes() {
       renderFichajesPage(1);
     }
   }, err => console.error(err));
+}
+
+// ── Delegated click listener Resumen → Fichajes filtrados ───────────────
+document.getElementById('recentFichajes').addEventListener('click', function(e) {
+  const span = e.target.closest('.resumen-link');
+  if (!span) return;
+  const type = span.dataset.filterType;
+  if (type === 'user') {
+    const nombre = span.dataset.nombre;
+    const userId = span.dataset.userid;
+    if (nombre && nombre !== '—') goToFichajesFiltered(userId ? { nombre, userId } : { nombre });
+  } else if (type === 'dept') {
+    const dept = span.dataset.departamento;
+    if (dept && dept !== '—') goToFichajesFiltered({ departamento: dept });
+  } else if (type === 'tipo') {
+    const tipo = span.dataset.tipo;
+    if (tipo) goToFichajesFiltered({ tipo });
+  }
+});
+
+// ── User profile drawer ──────────────────────────────────────────────────
+async function openUserDrawerById(userId) {
+  const doc = await db.collection('usuarios').doc(userId).get();
+  if (doc.exists && doc.data().creadoPor === me.id) openUserDrawer(userId, doc.data());
+}
+
+async function openUserDrawer(userId, userData) {
+  const initials = (userData.nombre || userData.email || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('drawerAvatar').textContent = initials;
+  document.getElementById('drawerName').textContent = userData.nombre || '—';
+  document.getElementById('drawerEmail').textContent = userData.email || '—';
+  const rolPill = userData.rol === 'admin' ? 'pill-admin' : userData.rol === 'jefe' ? 'pill-jefe' : 'pill-emp';
+  document.getElementById('drawerMeta').innerHTML =
+    (userData.empresa ? '<span>' + userData.empresa + '</span> · ' : '') +
+    (userData.departamento ? '<span>' + userData.departamento + '</span> · ' : '') +
+    '<span class="pill ' + rolPill + '" style="font-size:9px">' + (userData.rol || 'empleado') + '</span>';
+  document.getElementById('drawerStats').innerHTML = '<div class="dstat"><div class="dstat-label">Cargando...</div></div>';
+  document.getElementById('drawerFichajes').innerHTML = '<div class="loading"><span class="spinner"></span>Cargando...</div>';
+  document.getElementById('drawerBtnEdit').onclick = function() {
+    closeUserDrawer(); editingUserId = userId; editUser(userId);
+  };
+  document.getElementById('drawerOverlay').classList.add('show');
+  document.getElementById('userDrawer').classList.add('show');
+  try {
+    const snap = await db.collection('fichajes').where('userId','==',userId).orderBy('timestamp','desc').limit(50).get();
+    const fichajes = snap.docs.map(d => d.data());
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const mesInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const total = fichajes.length;
+    const esteMes = fichajes.filter(f => f.timestamp && f.timestamp.toDate && f.timestamp.toDate() >= mesInicio).length;
+    const hNorm = fichajes.reduce((s,f) => s + (f.horasNormales||0), 0);
+    const hExtra = fichajes.reduce((s,f) => s + (f.horasExtra||0), 0);
+    document.getElementById('drawerStats').innerHTML =
+      '<div class="dstat"><div class="dstat-label">Total fichajes</div><div class="dstat-value c-accent">' + total + '</div></div>' +
+      '<div class="dstat"><div class="dstat-label">Este mes</div><div class="dstat-value c-accent">' + esteMes + '</div></div>' +
+      '<div class="dstat"><div class="dstat-label">Horas normales</div><div class="dstat-value c-success">' + fmtHoras(hNorm) + '</div></div>' +
+      '<div class="dstat"><div class="dstat-label">Horas extra</div><div class="dstat-value c-warn">' + fmtHoras(hExtra) + '</div></div>';
+    if (!fichajes.length) { document.getElementById('drawerFichajes').innerHTML = '<div class="empty">Sin fichajes registrados</div>'; return; }
+    let rows = '';
+    fichajes.forEach(function(f) {
+      rows += '<tr><td style="color:var(--muted)">' + (f.departamento||'—') + '</td><td><span class="pill pill-' + f.tipo + '">' + f.tipo + '</span></td><td style="color:var(--accent);font-size:11px">' + fmt(f.timestamp) + '</td></tr>';
+    });
+    document.getElementById('drawerFichajes').innerHTML = '<table><thead><tr><th>Departamento</th><th>Tipo</th><th>Fecha y hora</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  } catch(e) {
+    document.getElementById('drawerFichajes').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+  }
+}
+
+function closeUserDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('show');
+  document.getElementById('userDrawer').classList.remove('show');
+}
+document.getElementById('drawerClose').addEventListener('click', closeUserDrawer);
+document.getElementById('drawerBtnClose').addEventListener('click', closeUserDrawer);
+document.getElementById('drawerOverlay').addEventListener('click', closeUserDrawer);
+
+// ── Fichajes filtrados (desde Resumen) ───────────────────────────────────
+function goToFichajesFiltered(filters) {
+  document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelector('.nav-item[data-sec="fichajes"]').classList.add('active');
+  document.getElementById('sec-fichajes').classList.add('active');
+  if (resumenUnsub) { resumenUnsub(); resumenUnsub = null; }
+  loadFichajesFiltered(filters);
+}
+
+async function loadFichajesFiltered(filters) {
+  fichajesActiveFilters = filters;
+  document.getElementById('tablaFichajesContent').innerHTML = '<div class="loading"><span class="spinner"></span>Filtrando...</div>';
+  if (fichajesUnsub) { fichajesUnsub(); fichajesUnsub = null; }
+
+  try {
+    // Construir misUserIds según rol
+    let misUserIds2;
+    if (me.rol === 'admin') {
+      const [misSnap2, jefesSnap2] = await Promise.all([
+        db.collection('usuarios').where('creadoPor','==',me.id).get(),
+        db.collection('usuarios').where('creadoPor','==',me.id).where('rol','==','jefe').get()
+      ]);
+      misUserIds2 = new Set(misSnap2.docs.map(d => d.id));
+      const jefesIds2 = jefesSnap2.docs.map(d => d.id);
+      if (jefesIds2.length > 0) {
+        const empleadosDeJefes2 = await Promise.all(
+          jefesIds2.map(jId => db.collection('usuarios').where('creadoPor','==',jId).get())
+        );
+        empleadosDeJefes2.forEach(s => s.docs.forEach(d => misUserIds2.add(d.id)));
+      }
+    } else {
+      const misSnap2 = await db.collection('usuarios').where('creadoPor','==',me.id).get();
+      misUserIds2 = new Set(misSnap2.docs.map(d => d.id));
+    }
+
+    let query;
+    if (filters.userId) {
+      query = db.collection('fichajes').where('userId','==',filters.userId).limit(1000);
+    } else if (filters.departamento) {
+      query = db.collection('fichajes').where('departamento','==',filters.departamento).limit(1000);
+    } else if (filters.tipo) {
+      query = db.collection('fichajes').where('tipo','==',filters.tipo).limit(1000);
+    } else {
+      query = db.collection('fichajes').orderBy('timestamp','desc').limit(1000);
+    }
+
+    const snap = await query.get();
+    let docs = snap.docs.filter(d => {
+      const f = d.data();
+      return misUserIds2.has(f.userId) || f.jefeAfectadoId === me.id;
+    });
+
+    if (filters.userId || filters.departamento || filters.tipo) {
+      docs = docs.slice().sort(function(a, b) {
+        const ta = a.data().timestamp; const tb = b.data().timestamp;
+        const da = ta && ta.toDate ? ta.toDate() : new Date(0);
+        const dateB = tb && tb.toDate ? tb.toDate() : new Date(0);
+        return dateB - da;
+      });
+    }
+
+    if (filters.nombre && !filters.userId) {
+      docs = docs.filter(function(d) {
+        return (d.data().nombre||'').toLowerCase().includes(filters.nombre.toLowerCase());
+      });
+    }
+
+    fichajesAllDocs = docs;
+    fichajesPage = 1;
+    renderFichajesPage(1);
+  } catch(e) {
+    document.getElementById('tablaFichajesContent').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+  }
 }
 
 // ── Escape helpers ────────────────────────────────────────────────────────
@@ -1150,7 +1308,5 @@ document.getElementById('btnMarcarTodas').addEventListener('click', async () => 
 // Arrancar listener de notificaciones tras inicializar Firebase
 initNotificaciones();
 </script>
-</body>
-</html></script>
 </body>
 </html>
