@@ -344,14 +344,17 @@ async function procesarFichajeAutomatico(deptId) {
     const ultimoSnap = await db.collection('fichajes')
       .where('userId', '==', user.id)
       .orderBy('timestamp', 'desc')
-      .limit(1)
+      .limit(20)
       .get();
+
+    // Ignorar registros fallidos para determinar entrada/salida
+    const ultimoValido = ultimoSnap.docs.find(d => d.data().tipo !== 'fallido' && !d.data().esRegistroEspejo);
 
     let tipo = 'entrada';
     let duracionMin = null, horasNormales = null, horasExtra = null;
-    if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') {
+    if (ultimoValido && ultimoValido.data().tipo === 'entrada') {
       tipo = 'salida';
-      const ultimoTs = ultimoSnap.docs[0].data().timestamp;
+      const ultimoTs = ultimoValido.data().timestamp;
       if (ultimoTs && ultimoTs.toDate) {
         duracionMin = Math.round((ahora - ultimoTs.toDate()) / 60000);
         const durHoras = duracionMin / 60;
@@ -524,14 +527,17 @@ async function procesarFichajeConId(deptId) {
     const ultimoSnap = await db.collection('fichajes')
       .where('userId', '==', user.id)
       .orderBy('timestamp', 'desc')
-      .limit(1)
+      .limit(20)
       .get();
+
+    // Ignorar registros fallidos para determinar entrada/salida
+    const ultimoValido = ultimoSnap.docs.find(d => d.data().tipo !== 'fallido' && !d.data().esRegistroEspejo);
 
     let tipo = 'entrada';
     let duracionMin = null, horasNormales = null, horasExtra = null;
-    if (!ultimoSnap.empty && ultimoSnap.docs[0].data().tipo === 'entrada') {
+    if (ultimoValido && ultimoValido.data().tipo === 'entrada') {
       tipo = 'salida';
-      const ultimoTs = ultimoSnap.docs[0].data().timestamp;
+      const ultimoTs = ultimoValido.data().timestamp;
       if (ultimoTs && ultimoTs.toDate) {
         duracionMin = Math.round((ahora - ultimoTs.toDate()) / 60000);
         const durHoras = duracionMin / 60;
